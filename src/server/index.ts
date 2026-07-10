@@ -711,6 +711,160 @@ Example response: "I'll be waiting for you in the kitchen, dear. I'm starting on
   }
 });
 
+// Endpoint for emotion analysis (voice inflection detection)
+app.post('/api/analyze-emotion', async (req, res) => {
+  const { text } = req.body || {};
+
+  if (!text) {
+    return res.status(400).json({ error: 'Text is required' });
+  }
+
+  try {
+    if (isApiKeyMissing) {
+      // Fallback: simple keyword-based emotion detection (for demo without API key)
+      const emotionMap: Record<string, string> = {
+        'sad|miss|miss|hurt|pain|lonely|alone': 'sad',
+        'happy|love|joy|wonderful|beautiful|lovely': 'happy',
+        'confused|lost|forget|remember|what|where': 'confused',
+        'anxious|worried|nervous|scared|afraid': 'anxious',
+        'peaceful|calm|quiet|rest|sleep': 'peaceful',
+      };
+
+      let emotion = 'neutral';
+      const lowerText = text.toLowerCase();
+      for (const [pattern, emotionName] of Object.entries(emotionMap)) {
+        if (pattern.split('|').some((word) => lowerText.includes(word))) {
+          emotion = emotionName;
+          break;
+        }
+      }
+
+      return res.json({ emotion, confidence: 0.7, tone: `Detected: ${emotion}` });
+    }
+
+    // Use Laguna for emotion analysis
+    const prompt = `Analyze the emotional tone of this statement from an elderly person with dementia. 
+Respond ONLY with valid JSON (no markdown, no code blocks):
+{"emotion": "happy|sad|anxious|confused|peaceful", "confidence": 0.0-1.0, "tone": "brief description"}
+
+Statement: "${text}"`;
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://yadira.app',
+        'X-Title': 'Yadira Dementia Companion',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn('[Yadira] Emotion analysis failed:', errText);
+      throw new Error(`OpenRouter returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    // Parse JSON response
+    let emotion = { emotion: 'neutral', confidence: 0.5, tone: 'neutral' };
+    try {
+      emotion = JSON.parse(content);
+    } catch {
+      console.warn('[Yadira] Failed to parse emotion JSON:', content);
+    }
+
+    res.json(emotion);
+  } catch (err: any) {
+    console.error('[Yadira] Emotion analysis error:', err.message || err);
+    res.status(500).json({ error: 'Emotion analysis failed', emotion: 'neutral', confidence: 0, tone: 'error' });
+  }
+});
+
+// Endpoint for media analysis (image/video)
+app.post('/api/analyze-media', async (req, res) => {
+  const { media, mediaType, context } = req.body || {};
+
+  if (!media || !mediaType) {
+    return res.status(400).json({ error: 'Media and mediaType are required' });
+  }
+
+  try {
+    // Check if Gemini is available
+    if (!genAI) {
+      // Fallback: return mock insight
+      return res.json({
+        description: 'Photo of a joyful moment',
+        emotion: 'happy',
+        suggestions: ['Tell me more about this memory', 'Who is in this picture?', 'What a lovely moment!'],
+      });
+    }
+
+    // Use Gemini Vision to analyze the image
+    const response = await genAI.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                mimeType: mediaType === 'video' ? 'image/jpeg' : 'image/jpeg',
+                data: media.split(',')[1] || media, // Remove data:image/jpeg;base64, if present
+              },
+            },
+            {
+              text: `You are analyzing a photo for a dementia patient care app. Describe what you see in 1-2 sentences, identify the emotional tone (happy/sad/peaceful/neutral), and suggest 2-3 gentle conversation starters.
+
+Respond ONLY as valid JSON (no markdown):
+{
+  "description": "What's in the image",
+  "emotion": "happy|sad|peaceful|neutral",
+  "suggestions": ["Question 1", "Question 2", "Statement 3"]
+}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error('Gemini returned empty response');
+    }
+
+    // Parse JSON
+    let insight = {
+      description: 'Photo',
+      emotion: 'neutral',
+      suggestions: ['Tell me about this?'],
+    };
+    try {
+      insight = JSON.parse(text);
+    } catch {
+      console.warn('[Yadira] Failed to parse media insight JSON:', text);
+    }
+
+    res.json(insight);
+  } catch (err: any) {
+    console.error('[Yadira] Media analysis error:', err.message || err);
+    res.status(500).json({
+      error: 'Media analysis failed',
+      description: 'Photo',
+      emotion: 'neutral',
+      suggestions: [],
+    });
+  }
+});
+
 // Endpoint for Inworld TTS proxying
 app.get('/api/tts', async (req, res) => {
   try {

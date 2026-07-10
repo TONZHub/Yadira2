@@ -29,6 +29,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem } from './types';
 import { DEFAULT_PROFILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
+import { VoiceInput, MediaUpload, EmotionBadge } from './components';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -456,7 +457,7 @@ export default function App() {
   }, [voiceEnabled]);
 
   // Handle Patient message submission
-  const handleSendMessage = async (textToSend: string) => {
+  const handleSendMessage = async (textToSend: string, emotion?: { emotion: string; confidence: number; tone: string }, mediaInsight?: { description: string; emotion: string; suggestions: string[] }) => {
     if (!textToSend.trim()) return;
 
     const userMsgId = `msg-${Date.now()}`;
@@ -464,7 +465,9 @@ export default function App() {
       id: userMsgId,
       role: 'user',
       text: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      emotion,
+      mediaInsight
     };
 
     setChatMessages(prev => [...prev, userMsg]);
@@ -489,11 +492,20 @@ export default function App() {
         text: m.text
       }));
 
+      // Inject emotion/media context into the prompt
+      let contextualMessage = textToSend;
+      if (emotion) {
+        contextualMessage += ` [Detected emotion: ${emotion.emotion}]`;
+      }
+      if (mediaInsight) {
+        contextualMessage += ` [Media insight: ${mediaInsight.description}. Emotion: ${mediaInsight.emotion}]`;
+      }
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: textToSend,
+          message: contextualMessage,
           history: serverHistory,
           caregiverSettings,
           patientMode,
@@ -899,6 +911,23 @@ export default function App() {
                         <p className="text-lg md:text-xl leading-relaxed tracking-wide font-sans">
                           {msg.text}
                         </p>
+
+                        {msg.emotion && (
+                          <div className="mt-2">
+                            <EmotionBadge emotion={msg.emotion.emotion} confidence={msg.emotion.confidence} />
+                          </div>
+                        )}
+
+                        {msg.mediaInsight && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <p className="text-sm text-blue-900">
+                              <span className="font-semibold">Photo:</span> {msg.mediaInsight.description}
+                            </p>
+                            <div className="mt-1">
+                              <EmotionBadge emotion={msg.mediaInsight.emotion} />
+                            </div>
+                          </div>
+                        )}
                         
                         <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
                           <span>{msg.timestamp}</span>
@@ -969,25 +998,47 @@ export default function App() {
                 </div>
 
                 {/* Patient Chat Input */}
-                <div className="p-4 bg-white border-t border-[#E3DFC2] flex space-x-3">
-                  <input
-                    type="text"
-                    value={userInput}
-                    onChange={(e) => setUserInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(userInput)}
-                    placeholder={`Type here to talk to ${patientMode === 'vivid' ? representedPersona : 'Yadira'}, ${patientName || 'dear'}...`}
-                    disabled={isTyping}
-                    className="flex-1 px-5 py-4 border border-[#C4C09E] rounded-2xl focus:outline-hidden focus:ring-3 focus:ring-[#5C8D71] focus:border-transparent text-lg md:text-xl font-medium bg-[#FCFAF5] shadow-inner"
-                    id="patient-chat-input"
-                  />
-                  <button
-                    id="btn-send-message"
-                    onClick={() => handleSendMessage(userInput)}
-                    disabled={isTyping || !userInput.trim()}
-                    className="p-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
-                  >
-                    <Send className="w-7 h-7" />
-                  </button>
+                <div className="p-4 bg-white border-t border-[#E3DFC2] flex flex-col gap-3">
+                  {/* Voice and Media Controls */}
+                  <div className="flex gap-3 flex-wrap">
+                    <div className="flex-1 min-w-[200px]">
+                      <VoiceInput
+                        onTranscript={(text, emotion) => handleSendMessage(text, emotion)}
+                        disabled={isTyping}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      <MediaUpload
+                        onMediaAnalyzed={(insight) => {
+                          const msg = `I see something interesting!`;
+                          handleSendMessage(msg, undefined, insight);
+                        }}
+                        disabled={isTyping}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Text Input */}
+                  <div className="flex space-x-3">
+                    <input
+                      type="text"
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(userInput)}
+                      placeholder={`Type here to talk to ${patientMode === 'vivid' ? representedPersona : 'Yadira'}, ${patientName || 'dear'}...`}
+                      disabled={isTyping}
+                      className="flex-1 px-5 py-4 border border-[#C4C09E] rounded-2xl focus:outline-hidden focus:ring-3 focus:ring-[#5C8D71] focus:border-transparent text-lg md:text-xl font-medium bg-[#FCFAF5] shadow-inner"
+                      id="patient-chat-input"
+                    />
+                    <button
+                      id="btn-send-message"
+                      onClick={() => handleSendMessage(userInput)}
+                      disabled={isTyping || !userInput.trim()}
+                      className="p-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
+                    >
+                      <Send className="w-7 h-7" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

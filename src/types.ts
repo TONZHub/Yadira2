@@ -6,6 +6,16 @@ export interface Message {
   role: 'user' | 'model';
   text: string;
   timestamp: string;
+  emotion?: {
+    emotion: string;
+    confidence: number;
+    tone: string;
+  };
+  mediaInsight?: {
+    description: string;
+    emotion: string;
+    suggestions: string[];
+  };
 }
 
 export interface Memory {
