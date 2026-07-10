@@ -1,0 +1,6 @@
+{
+  "name": "Yadira",
+  "description": "An empathetic, highly accessible AI companion for dementia patients paired with a comprehensive caregiver dashboard and clinical insight tracker.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

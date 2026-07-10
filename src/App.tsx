@@ -1,0 +1,2007 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Brain, 
+  Heart, 
+  User, 
+  Settings, 
+  Plus, 
+  Trash, 
+  Volume2, 
+  VolumeX, 
+  MessageSquare, 
+  Calendar, 
+  TrendingUp, 
+  Sparkles, 
+  Clock, 
+  Activity, 
+  Check, 
+  Image as ImageIcon, 
+  AlertTriangle, 
+  Send, 
+  RefreshCw, 
+  Sliders, 
+  PlusCircle,
+  HelpCircle,
+  Shield,
+  HeartHandshake
+} from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem } from './types';
+import { DEFAULT_PROFILE } from './types';
+import { useStoreList, useStoreDoc } from './lib/useStore';
+
+// Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
+const INITIAL_LOGS: DailyLog[] = [
+  { date: '07-02', confusionLevel: 2, mood: 'peaceful', hydrationCups: 6, sleepHours: 7.5, medsTaken: true, notes: 'Eleanor was very engaged in the morning. Had tea and talked about gardening.' },
+  { date: '07-03', confusionLevel: 3, mood: 'anxious', hydrationCups: 4, sleepHours: 6.0, medsTaken: true, notes: 'Some sundowning agitation around 5 PM. Calmed down after hearing soft music.' },
+  { date: '07-04', confusionLevel: 4, mood: 'restless', hydrationCups: 5, sleepHours: 5.5, medsTaken: true, notes: 'Slightly more confused today, asked for her mother twice. Grounded with old photos.' },
+  { date: '07-05', confusionLevel: 2, mood: 'peaceful', hydrationCups: 7, sleepHours: 8.0, medsTaken: true, notes: 'Excellent day. Had family visit. Remained coherent and smiling.' },
+  { date: '07-06', confusionLevel: 3, mood: 'sad', hydrationCups: 6, sleepHours: 6.5, medsTaken: true, notes: 'A bit quiet and withdrawn. Listened to old jazz records which cheered her up.' },
+  { date: '07-07', confusionLevel: 2, mood: 'peaceful', hydrationCups: 8, sleepHours: 7.5, medsTaken: true, notes: 'Stable. Engaged in puzzle solving.' },
+];
+
+const INITIAL_MEMORIES: Memory[] = [
+  {
+    id: 'mem-1',
+    title: 'Your Wedding with Edward (1974)',
+    description: 'You married Edward on a beautiful sunny June day in the rose garden. You wore a white lace dress and danced to "Can\'t Help Falling in Love".',
+    relationshipOrEra: 'Edward (Husband)',
+    imageTheme: 'wedding'
+  },
+  {
+    id: 'mem-2',
+    title: 'Your Dog, Barnaby',
+    description: 'Barnaby was a sweet golden retriever who loved running after tennis balls and sleeping right at the foot of your bed. He was your loyal companion.',
+    relationshipOrEra: 'Pet',
+    imageTheme: 'family'
+  },
+  {
+    id: 'mem-3',
+    title: 'Growing up in Lake Tahoe',
+    description: 'You spent summers swimming in the crystal blue waters of Lake Tahoe and winters drinking hot cocoa with marshmallow by the stone fireplace.',
+    relationshipOrEra: 'Childhood',
+    imageTheme: 'nature'
+  }
+];
+
+const INITIAL_FAQS: CustomFAQ[] = [
+  {
+    id: 'faq-1',
+    question: 'Where is my family?',
+    answer: 'Your son Thomas is currently at work, dear. He loves you very much and is coming over to have dinner with you at 5:30 PM. You are completely safe and warm here.'
+  },
+  {
+    id: 'faq-2',
+    question: 'Where am I?',
+    answer: 'You are in your beautiful, cozy apartment in Portland. Your favorite green chair is right here, and your favorite tea is brewing. You are safe.'
+  }
+];
+
+const DEFAULT_ROUTINE: RoutineItem[] = [
+  {
+    id: 'rout-1',
+    time: '08:30 AM',
+    title: 'Morning Sunshine & Warm Tea',
+    description: 'Open the blinds for natural morning light to help establish circadian rhythm. Share a warm chamomile tea and a simple, nutritious breakfast.',
+    caregiverTips: 'Speak in short, bright sentences. Use a cheerful tone to start the day positively.',
+    completed: false
+  },
+  {
+    id: 'rout-2',
+    time: '10:00 AM',
+    title: 'Memory Album Reminiscence',
+    description: 'Flip through the Yadira Memory Book or physical albums. Ask open-ended sensory questions (e.g., "Doesn\'t that lake look beautiful and cool?").',
+    caregiverTips: 'Do not test or quiz them ("Do you remember who this is?"). Instead, share the memory directly ("This is you and Edward at Tahoe!").',
+    completed: false
+  },
+  {
+    id: 'rout-3',
+    time: '12:30 PM',
+    title: 'Nourishing Lunch & Hydration Check',
+    description: 'Serve a colourful lunch rich in Omega-3s. Fill a clear cup with water and gently encourage drinking.',
+    caregiverTips: 'Place the cup directly in their line of sight. Hand-to-hand guidance is helpful if they forget to sip.',
+    completed: false
+  },
+  {
+    id: 'rout-4',
+    time: '03:00 PM',
+    title: 'Gentle Classical Music & Puzzle',
+    description: 'Play soft piano or orchestral music (classical baroque or Chopin) while working on a simple tactile puzzle or folding warm linens.',
+    caregiverTips: 'Music is incredibly powerful for memory. If they want to hum or move, join in gently.',
+    completed: false
+  },
+  {
+    id: 'rout-5',
+    time: '06:00 PM',
+    title: 'Calming Dinner & Grounding Conversation',
+    description: 'Keep the dinner environment quiet and dim to counter any evening sundowning confusion. Reassure them that they are safe at home.',
+    caregiverTips: 'Avoid noisy television or clattering dishes. Speak slowly and maintain reassuring eye contact.',
+    completed: false
+  }
+];
+
+export default function App() {
+  // Navigation: 'patient' or 'caregiver'
+  const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>('patient');
+
+  // Caregiver Config State — now persisted (was lost on refresh before)
+  const [profile, setProfile] = useStoreDoc('profile', DEFAULT_PROFILE);
+  const { 
+    patientName, 
+    patientStage, 
+    patientHobbies, 
+    patientWakeTime, 
+    patientSleepTime, 
+    caregiverName, 
+    caregiverRelationship,
+    patientMode,
+    representedPersona,
+    representedVoiceId,
+    driftTimeoutSeconds,
+    driftEnabled
+  } = profile;
+  
+  const setPatientName = (v: string) => setProfile({ ...profile, patientName: v });
+  const setPatientStage = (v: string) => setProfile({ ...profile, patientStage: v });
+  const setPatientHobbies = (v: string) => setProfile({ ...profile, patientHobbies: v });
+  const setPatientWakeTime = (v: string) => setProfile({ ...profile, patientWakeTime: v });
+  const setPatientSleepTime = (v: string) => setProfile({ ...profile, patientSleepTime: v });
+  const setCaregiverName = (v: string) => setProfile({ ...profile, caregiverName: v });
+  const setCaregiverRelationship = (v: string) => setProfile({ ...profile, caregiverRelationship: v });
+  const setPatientMode = (v: 'lucid' | 'vivid') => setProfile({ ...profile, patientMode: v });
+  const setRepresentedPersona = (v: string) => setProfile({ ...profile, representedPersona: v });
+  const setRepresentedVoiceId = (v: string) => setProfile({ ...profile, representedVoiceId: v });
+  const setDriftTimeoutSeconds = (v: number) => setProfile({ ...profile, driftTimeoutSeconds: v });
+  const setDriftEnabled = (v: boolean) => setProfile({ ...profile, driftEnabled: v });
+
+  // Persisted stores — localStorage today, Firestore the moment config exists
+  const [memories, setMemories] = useStoreList<Memory>('memories', INITIAL_MEMORIES);
+  const [faqs, setFaqs] = useStoreList<CustomFAQ>('faqs', INITIAL_FAQS);
+  const [logs, setLogs] = useStoreList<DailyLog>('logs', INITIAL_LOGS, 'date');
+  const [routine, setRoutine] = useStoreList<RoutineItem>('routine', DEFAULT_ROUTINE);
+
+  // New Memory Modal State
+  const [newMemTitle, setNewMemTitle] = useState('');
+  const [newMemDesc, setNewMemDesc] = useState('');
+  const [newMemEra, setNewMemEra] = useState('');
+  const [newMemTheme, setNewMemTheme] = useState<'family' | 'nature' | 'retro' | 'home' | 'wedding'>('family');
+  const [showMemModal, setShowMemModal] = useState(false);
+
+  // New FAQ State
+  const [newFaqQuest, setNewFaqQuest] = useState('');
+  const [newFaqAns, setNewFaqAns] = useState('');
+
+  // Daily Log Inputs
+  const [logConfusion, setLogConfusion] = useState<number>(2);
+  const [logMood, setLogMood] = useState<'peaceful' | 'anxious' | 'restless' | 'sad'>('peaceful');
+  const [logHydration, setLogHydration] = useState<number>(6);
+  const [logSleep, setLogSleep] = useState<number>(7.5);
+  const [logMeds, setLogMeds] = useState<boolean>(true);
+  const [logNotes, setLogNotes] = useState('');
+
+  // AI Generation Loading States
+  const [loadingRoutine, setLoadingRoutine] = useState(false);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [aiInsights, setAiInsights] = useState<{
+    clinicalSummary: string;
+    criticalAlerts: string[];
+    actionableTips: string[];
+  } | null>(null);
+
+  // Patient Chat State
+  const [chatMessages, setChatMessages] = useState<Message[]>(() => {
+    const isVividMode = profile?.patientMode === 'vivid';
+    const persona = profile?.representedPersona || 'Beth';
+    const greetingText = isVividMode
+      ? `Hello, love. It's me, ${persona}. I'm right here with you.`
+      : `Hello, ${profile?.patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
+    return [
+      {
+        id: 'greet',
+        role: 'model',
+        text: greetingText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ];
+  });
+  const [userInput, setUserInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  // Tracks whether Beth's voice is actually playing (Inworld audio or the
+  // browser SpeechSynthesis fallback) so the drift timer can wait for her
+  // to finish talking instead of starting the moment text generation ends.
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [soundFeedback, setSoundFeedback] = useState(true);
+
+  // Ref for chat auto-scrolling
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
+  // Track the last user message ID that triggered a drift reach, to prevent
+  // the drift from looping by re-triggering on its own model messages.
+  const lastDriftedAfterMsgRef = useRef<string | null>(null);
+
+  // Unlock browser audio autoplay policy on the first user interaction.
+  // This is critical so that Inworld audio can play even when the chat
+  // is submitted via Enter key (which browsers don't count as a gesture).
+  useEffect(() => {
+    const unlock = () => {
+      if (audioUnlockedRef.current) return;
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        ctx.resume().then(() => {
+          ctx.suspend();
+          audioUnlockedRef.current = true;
+          console.log('[Audio] Context unlocked by user interaction.');
+        });
+      } catch (_) {}
+    };
+    window.addEventListener('click', unlock, { once: false, passive: true });
+    window.addEventListener('keydown', unlock, { once: false, passive: true });
+    window.addEventListener('touchstart', unlock, { once: false, passive: true });
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+  }, []);
+
+  // (localStorage sync now handled inside useStore — with Firestore on top)
+
+  // Scroll to bottom of chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isTyping]);
+
+  // Handle active mode transition dynamically (update greeting and speak it)
+  const prevModeRef = useRef(patientMode);
+  useEffect(() => {
+    if (prevModeRef.current !== patientMode) {
+      prevModeRef.current = patientMode;
+      if (patientMode === 'vivid') {
+        const text = `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
+        setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
+        speakText(text);
+        if (soundFeedback) playSoundCue('chime');
+      } else {
+        const text = `Hello, ${patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
+        setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
+        speakText(text);
+        if (soundFeedback) playSoundCue('pop');
+      }
+    }
+  }, [patientMode, representedPersona, patientName, soundFeedback]);
+
+  // Proactive Drift Detection (Inactivity Timer calling /api/drift/proactive)
+  // We derive the last user message ID so the effect only re-runs when the
+  // patient actually says something — NOT when model/drift messages are added.
+  const lastUserMsg = chatMessages.filter(m => m.role === 'user').slice(-1)[0];
+  const lastUserMsgId = lastUserMsg?.id ?? null;
+
+  useEffect(() => {
+    if (activeTab !== 'patient' || !driftEnabled) return;
+    if (isTyping) return;
+    // Wait for Beth's voice to actually finish before starting the drift
+    // countdown — otherwise the timer runs out while she's still talking.
+    if (isSpeaking) return;
+
+    // Don't fire drift if we already fired after this same user message
+    if (lastUserMsgId === lastDriftedAfterMsgRef.current) return;
+
+    const triggerDriftReach = async () => {
+      // Mark this user message as already handled before firing
+      lastDriftedAfterMsgRef.current = lastUserMsgId;
+
+      try {
+        const response = await fetch('/api/drift/proactive', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientName,
+            representedPersona,
+            memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra }))
+          })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        const driftReply: Message = {
+          id: `msg-drift-${Date.now()}`,
+          role: 'model',
+          text: data.reply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setChatMessages(prev => [...prev, driftReply]);
+        speakText(data.reply);
+        if (soundFeedback) playSoundCue('chime');
+      } catch (err) {
+        console.error('Proactive reach error:', err);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      triggerDriftReach();
+    }, driftTimeoutSeconds * 1000);
+
+    return () => clearTimeout(timer);
+  }, [lastUserMsgId, userInput, driftEnabled, driftTimeoutSeconds, activeTab, isTyping, isSpeaking, patientName, representedPersona, memories]);
+
+  // Text To Speech helper
+  const speakText = (text: string) => {
+    if (!voiceEnabled) return;
+
+    // Stop any currently playing speech/audio
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) {}
+
+    // Clean text by removing markdown asterisks (e.g. *softly*) so they aren't read out literally
+    const cleanedText = text.replace(/\*.*?\*/g, '').trim();
+    if (!cleanedText) {
+      setIsSpeaking(false);
+      return;
+    }
+
+    setIsSpeaking(true);
+
+    // First try Inworld proxy endpoint
+    try {
+      const selectedVoice = representedVoiceId || 'Sarah';
+      const audioUrl = `/api/tts?text=${encodeURIComponent(cleanedText)}&voiceId=${selectedVoice}`;
+
+      const audio = new Audio(audioUrl);
+      activeAudioRef.current = audio;
+
+      let fallbackTriggered = false;
+      const triggerFallback = () => {
+        if (!fallbackTriggered) {
+          fallbackTriggered = true;
+          fallbackSpeechSynthesis(cleanedText);
+        }
+      };
+
+      audio.addEventListener('ended', () => setIsSpeaking(false));
+
+      audio.play().catch(err => {
+        console.warn('[TTS] Inworld audio playback failed or aborted:', err);
+        if (err.name !== 'AbortError') {
+          triggerFallback();
+        } else {
+          setIsSpeaking(false);
+        }
+      });
+
+      audio.addEventListener('error', (e) => {
+        console.warn('[TTS] Inworld backend proxy failed, falling back to browser SpeechSynthesis.');
+        triggerFallback();
+      });
+
+    } catch (err) {
+      console.warn('[TTS] Inworld initialization error:', err);
+      fallbackSpeechSynthesis(cleanedText);
+    }
+  };
+
+  const fallbackSpeechSynthesis = (text: string) => {
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.82;
+      utterance.pitch = 1.05;
+
+      const voices = window.speechSynthesis.getVoices();
+      const friendlyVoice = voices.find(v =>
+        v.name.includes('Google US English') ||
+        v.name.includes('Natural') ||
+        v.name.includes('Zira') ||
+        v.name.includes('Samantha')
+      );
+      if (friendlyVoice) {
+        utterance.voice = friendlyVoice;
+      }
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error('[TTS] SpeechSynthesis fallback error:', e);
+      setIsSpeaking(false);
+    }
+  };
+
+  // Play a soft pleasant tone when patient does certain actions (sound therapy cue)
+  const playSoundCue = (type: 'chime' | 'pop') => {
+    if (!soundFeedback) return;
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      if (type === 'chime') {
+        // High, pure harmonic chime
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        osc.frequency.exponentialRampToValueAtTime(783.99, audioCtx.currentTime + 0.15); // G5
+        gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.8);
+      } else {
+        // Soft bubble pop
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      }
+    } catch (err) {
+      console.warn('AudioContext failed:', err);
+    }
+  };
+
+  // Speak initial greeting when voice is enabled
+  useEffect(() => {
+    if (chatMessages.length === 1 && voiceEnabled) {
+      speakText(chatMessages[0].text);
+    }
+  }, [voiceEnabled]);
+
+  // Handle Patient message submission
+  const handleSendMessage = async (textToSend: string) => {
+    if (!textToSend.trim()) return;
+
+    const userMsgId = `msg-${Date.now()}`;
+    const userMsg: Message = {
+      id: userMsgId,
+      role: 'user',
+      text: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setChatMessages(prev => [...prev, userMsg]);
+    setUserInput('');
+    setIsTyping(true);
+
+    if (soundFeedback) playSoundCue('pop');
+
+    try {
+      // Build full state details for context injection on the server
+      const caregiverSettings = {
+        patientName,
+        caregiverName,
+        relationship: caregiverRelationship,
+        customAnswers: faqs.map(f => ({ question: f.question, answer: f.answer })),
+        patientMode,
+        representedPersona
+      };
+
+      const serverHistory = chatMessages.map(m => ({
+        role: m.role,
+        text: m.text
+      }));
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: textToSend,
+          history: serverHistory,
+          caregiverSettings,
+          patientMode,
+          representedPersona,
+          memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra }))
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const yadiraReply: Message = {
+        id: `msg-${Date.now() + 1}`,
+        role: 'model',
+        text: data.reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setChatMessages(prev => [...prev, yadiraReply]);
+      speakText(data.reply);
+    } catch (err: any) {
+      console.error('Chat error:', err);
+      const isVivid = patientMode === 'vivid';
+      const persona = representedPersona || 'Beth';
+      const fallbackText = isVivid
+        ? `I'm right here, sweetheart. I just wanted you to know I'm thinking of you. Take a moment with me.`
+        : `I hear you, dear. I am right here with you. Everything is safe and comfortable.`;
+      const errorReply: Message = {
+        id: `msg-err-${Date.now()}`,
+        role: 'model',
+        text: fallbackText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setChatMessages(prev => [...prev, errorReply]);
+      speakText(errorReply.text);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  // Routine Activity Completion
+  const toggleRoutine = (id: string) => {
+    const updated = routine.map(item => {
+      if (item.id === id) {
+        const nextState = !item.completed;
+        if (nextState && soundFeedback) playSoundCue('chime');
+        return { ...item, completed: nextState };
+      }
+      return item;
+    });
+    setRoutine(updated);
+  };
+
+  // Add Caregiver Daily Log
+  const handleAddLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    const todayStr = new Date().toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '-');
+    const newLog: DailyLog = {
+      date: todayStr,
+      confusionLevel: logConfusion,
+      mood: logMood,
+      hydrationCups: logHydration,
+      sleepHours: logSleep,
+      medsTaken: logMeds,
+      notes: logNotes || 'Logged symptoms'
+    };
+
+    setLogs(prev => {
+      // If a log for today already exists, filter it out first
+      const clean = prev.filter(l => l.date !== todayStr);
+      return [...clean, newLog];
+    });
+
+    setLogNotes('');
+    alert('Today\'s symptoms and daily stats have been logged securely.');
+  };
+
+  // Delete Log
+  const handleDeleteLog = (date: string) => {
+    setLogs(prev => prev.filter(l => l.date !== date));
+  };
+
+  // Memory Actions
+  const handleAddMemory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemTitle || !newMemDesc) return;
+
+    const newMem: Memory = {
+      id: `mem-${Date.now()}`,
+      title: newMemTitle,
+      description: newMemDesc,
+      relationshipOrEra: newMemEra || 'Family',
+      imageTheme: newMemTheme
+    };
+
+    setMemories(prev => [newMem, ...prev]);
+    setNewMemTitle('');
+    setNewMemDesc('');
+    setNewMemEra('');
+    setShowMemModal(false);
+  };
+
+  const handleDeleteMemory = (id: string) => {
+    setMemories(prev => prev.filter(m => m.id !== id));
+  };
+
+  // FAQ Actions
+  const handleAddFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFaqQuest || !newFaqAns) return;
+
+    const newFaq: CustomFAQ = {
+      id: `faq-${Date.now()}`,
+      question: newFaqQuest,
+      answer: newFaqAns
+    };
+
+    setFaqs(prev => [...prev, newFaq]);
+    setNewFaqQuest('');
+    setNewFaqAns('');
+  };
+
+  const handleDeleteFaq = (id: string) => {
+    setFaqs(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Send Nurse Redirection Cue to Backend and Push as Message to Patient
+  const handleSendRedirection = async (nurseNote: string) => {
+    if (!nurseNote.trim()) return;
+    try {
+      const response = await fetch('/api/redirection/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nurseNote,
+          patientName,
+          representedPersona
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      // Create message from the persona (model)
+      const redirectMsg: Message = {
+        id: `msg-redirect-${Date.now()}`,
+        role: 'model',
+        text: data.reply,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setChatMessages(prev => [...prev, redirectMsg]);
+      speakText(data.reply);
+      if (soundFeedback) playSoundCue('chime');
+      alert(`Redirection cue successfully dispatched to Patient View: "${data.reply}"`);
+    } catch (err: any) {
+      console.error('Redirection error:', err);
+      alert('Could not dispatch redirection. Please check if server is running.');
+    }
+  };
+
+  // AI-Powered Routine Generation
+  const handleGenerateAiRoutine = async () => {
+    setLoadingRoutine(true);
+    try {
+      const response = await fetch('/api/routine/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patientProfile: {
+            name: patientName,
+            stage: patientStage,
+            hobbies: patientHobbies,
+            wakeTime: patientWakeTime,
+            sleepTime: patientSleepTime
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      if (data.routine && Array.isArray(data.routine)) {
+        const formattedRoutine: RoutineItem[] = data.routine.map((item: any, idx: number) => ({
+          id: `rout-ai-${Date.now()}-${idx}`,
+          time: item.time,
+          title: item.title,
+          description: item.description,
+          caregiverTips: item.caregiverTips,
+          completed: false
+        }));
+
+        setRoutine(formattedRoutine);
+        alert('AI successfully synthesized a highly personalized cognitive routine! It is now loaded into the patient\'s active schedule.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Could not synthesize routine. Please check that GEMINI_API_KEY is configured.');
+    } finally {
+      setLoadingRoutine(false);
+    }
+  };
+
+  // AI-Powered Clinical Insights Generation
+  const handleGenerateInsights = async () => {
+    setLoadingInsights(true);
+    try {
+      const response = await fetch('/api/insights/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dailyLogs: logs,
+          patientProfile: {
+            name: patientName,
+            stage: patientStage,
+            hobbies: patientHobbies
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      if (data.insights) {
+        setAiInsights(data.insights);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Could not generate clinical insights. Please check that GEMINI_API_KEY is configured.');
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  // Custom SVG theme icons for memory books
+  const getThemeGradient = (theme: string) => {
+    switch (theme) {
+      case 'nature': return 'from-teal-100 to-emerald-200 text-teal-800 border-teal-200';
+      case 'retro': return 'from-amber-100 to-orange-200 text-amber-900 border-amber-200';
+      case 'wedding': return 'from-rose-100 to-pink-200 text-rose-800 border-rose-200';
+      case 'home': return 'from-blue-100 to-indigo-200 text-blue-800 border-blue-200';
+      default: return 'from-sage-100 to-green-200 text-sage-800 border-sage-200';
+    }
+  };
+
+  return (
+    <div className={`min-h-screen text-[#2C2C2A] font-sans antialiased flex flex-col transition-all duration-700 ${
+      activeTab === 'patient' && patientMode === 'vivid'
+        ? 'bg-[#FCF5F5]'
+        : 'bg-[#F4F1EA]'
+    }`}>
+      
+      {/* Dynamic Header */}
+      <header className="bg-white border-b border-[#E3DFC2] sticky top-0 z-40 px-4 md:px-8 py-3 flex items-center justify-between shadow-xs">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
+            <Brain className="w-6 h-6" id="app-logo-icon" />
+          </div>
+          <div>
+            <span className="text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
+            <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
+              XPRIZE Dementia Companion
+            </span>
+          </div>
+        </div>
+
+        {/* Global Tab Switcher */}
+        <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
+          <button
+            id="tab-patient"
+            onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+              activeTab === 'patient'
+                ? 'bg-white text-[#3A5D45] shadow-xs font-bold scale-[1.02]'
+                : 'text-[#5E5D57] hover:text-[#3A5D45]'
+            }`}
+          >
+            <Heart className="w-4 h-4 text-rose-500" />
+            <span>Patient View</span>
+          </button>
+          <button
+            id="tab-caregiver"
+            onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+              activeTab === 'caregiver'
+                ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
+                : 'text-[#5E5D57] hover:text-[#3A5D45]'
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Caregiver Hub</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Stage */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 flex flex-col">
+        <AnimatePresence mode="wait">
+          {activeTab === 'patient' ? (
+            
+            /* ================================================================= */
+            /*                          PATIENT VIEW                            */
+            /* ================================================================= */
+            <motion.div
+              key="patient-view"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1"
+            >
+              
+              {/* Left Column: Yadira Core Conversation Window */}
+              <div className={`lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[550px] lg:min-h-[650px] transition-all duration-500 ${
+                patientMode === 'vivid' ? 'border-rose-200 ring-2 ring-rose-500/5' : 'border-[#E3DFC2]'
+              }`}>
+                
+                {/* Active Yadira Header */}
+                <div className={`border-b px-6 py-4 flex items-center justify-between transition-all duration-500 ${
+                  patientMode === 'vivid' ? 'bg-[#FCF6F6] border-rose-100' : 'bg-[#FAF9F5] border-[#E3DFC2]'
+                }`}>
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      {/* Gentle pulsating visual heartbeat matching respiration rate */}
+                      <span className={`absolute inset-0 rounded-full opacity-20 animate-ping transition-all duration-500 ${
+                        patientMode === 'vivid' ? 'bg-rose-500' : 'bg-[#5C8D71]'
+                      }`}></span>
+                      <div className={`w-14 h-14 rounded-full bg-gradient-to-tr flex items-center justify-center text-white border-2 border-white shadow-sm relative transition-all duration-500 ${
+                        patientMode === 'vivid' 
+                          ? 'from-rose-400 to-pink-500' 
+                          : 'from-[#5C8D71] to-[#92B4A1]'
+                      }`}>
+                        <HeartHandshake className="w-7 h-7" />
+                      </div>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-[#2C2C2A] leading-tight">
+                        {patientMode === 'vivid' ? representedPersona : 'Yadira'}
+                      </h2>
+                      <p className={`text-xs font-semibold flex items-center transition-all duration-500 ${
+                        patientMode === 'vivid' ? 'text-rose-500' : 'text-[#5C8D71]'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full mr-1.5 animate-pulse transition-all duration-500 ${
+                          patientMode === 'vivid' ? 'bg-rose-500' : 'bg-[#5C8D71]'
+                        }`}></span>
+                        {patientMode === 'vivid' ? 'Right here with you' : 'Sitting right here with you'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Accessibility Audio Settings */}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      id="toggle-voice"
+                      onClick={() => { setVoiceEnabled(!voiceEnabled); playSoundCue('pop'); }}
+                      className={`p-3 rounded-xl border transition-all ${
+                        voiceEnabled 
+                          ? 'bg-[#E8F1EB] text-[#3A5D45] border-[#CEDFCF]' 
+                          : 'bg-[#F2EFE9] text-[#7E7D76] border-[#D8D5C4]'
+                      }`}
+                      title={voiceEnabled ? "Mute Yadira's Voice" : "Enable Yadira's Voice"}
+                    >
+                      {voiceEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+                    </button>
+                    <button
+                      id="toggle-chime"
+                      onClick={() => { setSoundFeedback(!soundFeedback); playSoundCue('pop'); }}
+                      className={`p-3 rounded-xl border transition-all ${
+                        soundFeedback 
+                          ? 'bg-[#E8F1EB] text-[#3A5D45] border-[#CEDFCF]' 
+                          : 'bg-[#F2EFE9] text-[#7E7D76] border-[#D8D5C4]'
+                      }`}
+                      title={soundFeedback ? "Mute sound triggers" : "Enable sound triggers"}
+                    >
+                      <Sparkles className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subtitle / Big Screen Text Display */}
+                <div className="bg-[#FAF9F5] border-b border-[#E3DFC2] px-6 py-2 text-center text-xs text-[#8A8981] font-medium tracking-wide">
+                  CLINICAL ACCESSIBILITY STANDARD: SENSORY CONTRAST & SLOW DIALOGUE REASSURANCE
+                </div>
+
+                {/* Message Log */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FCFAF5]">
+                  {chatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl p-5 shadow-xs transition-all ${
+                          msg.role === 'user'
+                            ? 'bg-[#E3EFE7] text-[#25422F] border border-[#CEDFCE] rounded-tr-none'
+                            : 'bg-white text-[#2C2C2A] border border-[#E4E0C4] rounded-tl-none font-medium'
+                        }`}
+                      >
+                        {/* Huge easy-to-read text size for dementia patients */}
+                        <p className="text-lg md:text-xl leading-relaxed tracking-wide font-sans">
+                          {msg.text}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
+                          <span>{msg.timestamp}</span>
+                          {msg.role === 'model' && (
+                            <button
+                              onClick={() => speakText(msg.text)}
+                              className="flex items-center space-x-1 px-2.5 py-1 bg-[#F5F3EC] hover:bg-[#EAE8DD] rounded-md transition-all text-[#3A5D45]"
+                            >
+                              <Volume2 className="w-3.5 h-3.5" />
+                              <span className="font-semibold text-xs">Read to me</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {isTyping && (
+                    <div className="flex justify-start">
+                      <div className="bg-white border border-[#E4E0C4] rounded-2xl rounded-tl-none p-5 shadow-xs">
+                        <div className="flex items-center space-x-2 text-[#5C8D71]">
+                          <span className="text-sm font-semibold tracking-wide animate-pulse">
+                            {patientMode === 'vivid' ? `${representedPersona} is thinking gently...` : 'Yadira is thinking gently...'}
+                          </span>
+                          <div className="flex space-x-1">
+                            <span className="w-2.5 h-2.5 bg-[#5C8D71] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-2.5 h-2.5 bg-[#5C8D71] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                            <span className="w-2.5 h-2.5 bg-[#5C8D71] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Pre-configured Helpful Anxious Cues */}
+                <div className="bg-[#FAF9F5] border-t border-[#E3DFC2] p-4 flex flex-wrap gap-2.5">
+                  <span className="text-xs text-[#7E7D76] w-full font-bold uppercase tracking-wider mb-1 px-1">
+                    Tap to ask {patientMode === 'vivid' ? representedPersona : 'Yadira'}:
+                  </span>
+                  {faqs.map((faq) => (
+                    <button
+                      key={faq.id}
+                      id={`patient-faq-${faq.id}`}
+                      onClick={() => handleSendMessage(faq.question)}
+                      disabled={isTyping}
+                      className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 active:scale-95 text-left max-w-full truncate shadow-xs"
+                    >
+                      {faq.question}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => handleSendMessage("Tell me a comforting story.")}
+                    disabled={isTyping}
+                    className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 shadow-xs"
+                  >
+                    📖 Tell me a story
+                  </button>
+                  <button
+                    onClick={() => handleSendMessage("Help me feel calm, I am a bit anxious.")}
+                    disabled={isTyping}
+                    className="px-4 py-2.5 bg-[#FFF2F2] border border-[#FFD9D9] text-sm font-bold text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 shadow-xs"
+                  >
+                    ❤️ Help me feel calm
+                  </button>
+                </div>
+
+                {/* Patient Chat Input */}
+                <div className="p-4 bg-white border-t border-[#E3DFC2] flex space-x-3">
+                  <input
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(userInput)}
+                    placeholder={`Type here to talk to ${patientMode === 'vivid' ? representedPersona : 'Yadira'}, ${patientName || 'dear'}...`}
+                    disabled={isTyping}
+                    className="flex-1 px-5 py-4 border border-[#C4C09E] rounded-2xl focus:outline-hidden focus:ring-3 focus:ring-[#5C8D71] focus:border-transparent text-lg md:text-xl font-medium bg-[#FCFAF5] shadow-inner"
+                    id="patient-chat-input"
+                  />
+                  <button
+                    id="btn-send-message"
+                    onClick={() => handleSendMessage(userInput)}
+                    disabled={isTyping || !userInput.trim()}
+                    className="p-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
+                  >
+                    <Send className="w-7 h-7" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Visual Routine Cues & Memory Book */}
+              <div className="lg:col-span-5 flex flex-col space-y-8">
+                
+                {/* Daily Routine / Care Tasks Visual Checklist */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                        <Calendar className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#2C2C2A]">Today's Warm Rituals</h3>
+                    </div>
+                    <span className="text-xs font-bold text-[#7E7D76] uppercase tracking-wider bg-[#F4F1EA] px-2.5 py-1 rounded-full border border-[#D5D2B3]">
+                      Today
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                    Checking these off plays comforting sound therapy cues and logs active mental engagement.
+                  </p>
+
+                  <div className="space-y-3 flex-1 overflow-y-auto max-h-[280px] pr-1.5">
+                    {routine.map((task) => (
+                      <button
+                        key={task.id}
+                        id={`task-item-${task.id}`}
+                        onClick={() => toggleRoutine(task.id)}
+                        className={`w-full p-4 rounded-2xl border text-left flex items-start space-x-4 transition-all duration-300 group ${
+                          task.completed
+                            ? 'bg-[#F2FAF4] border-[#CEDFCF] text-[#4F7359]'
+                            : 'bg-[#FCFAF5] border-[#E3DFC2] hover:bg-white hover:border-[#A6A27B]'
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                          task.completed
+                            ? 'bg-[#3A5D45] border-[#3A5D45] text-white scale-105'
+                            : 'border-[#A6A27B] bg-white group-hover:border-[#3A5D45]'
+                        }`}>
+                          {task.completed && <Check className="w-5 h-5 stroke-[3px]" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-base font-bold ${task.completed ? 'line-through text-[#8A9C8E]' : 'text-[#2C2C2A]'}`}>
+                              {task.title}
+                            </span>
+                            <span className="text-xs font-bold text-[#8A8981] flex items-center">
+                              <Clock className="w-3.5 h-3.5 mr-1" />
+                              {task.time}
+                            </span>
+                          </div>
+                          <p className={`text-sm mt-1 leading-relaxed ${task.completed ? 'text-[#8A9C8E]' : 'text-[#5E5D57]'}`}>
+                            {task.description}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Treasured Memory Album View */}
+                <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="p-2 rounded-lg bg-[#FDF1F1] text-rose-500">
+                        <Heart className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-xl font-bold text-[#2C2C2A]">Treasured Memory Album</h3>
+                    </div>
+                    <span className="text-xs font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                      {memories.length} Memories
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                    Beautiful historical landmarks and personal history logs designed for comforting reminiscent triggers.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 overflow-y-auto max-h-[350px] pr-1">
+                    {memories.map((mem) => {
+                      const grad = getThemeGradient(mem.imageTheme);
+                      return (
+                        <div
+                          key={mem.id}
+                          className="p-5 rounded-2xl bg-[#FCFAF5] border border-[#E3DFC2] flex flex-col shadow-xs"
+                        >
+                          <div className="flex items-start justify-between">
+                            <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-full bg-white border border-[#D5D2B3] text-[#5C8D71]">
+                              🏷️ {mem.relationshipOrEra}
+                            </span>
+                            <button
+                              onClick={() => {
+                                playSoundCue('pop');
+                                speakText(`Let me share this memory with you, dear. It is titled: ${mem.title}. ${mem.description}`);
+                              }}
+                              className="flex items-center space-x-1.5 px-3 py-1 bg-[#3A5D45] text-white hover:bg-[#2B4633] rounded-lg transition-all text-xs font-semibold shadow-xs"
+                            >
+                              <Volume2 className="w-4 h-4" />
+                              <span>Listen to Memory</span>
+                            </button>
+                          </div>
+
+                          {/* Decorative memory visualization illustration */}
+                          <div className={`mt-3 h-14 w-full rounded-lg bg-gradient-to-r ${grad} flex items-center justify-center border text-2xl`}>
+                            {mem.imageTheme === 'wedding' && '💍🌹🌸'}
+                            {mem.imageTheme === 'family' && '🏡🐾❤️'}
+                            {mem.imageTheme === 'nature' && '🌲🏔️☀️'}
+                            {mem.imageTheme === 'retro' && '📸⏳👴'}
+                            {mem.imageTheme === 'home' && '🛋️☕🍽️'}
+                          </div>
+
+                          <h4 className="text-lg font-bold text-[#2C2C2A] mt-3">{mem.title}</h4>
+                          <p className="text-sm text-[#5E5D57] leading-relaxed mt-1.5">
+                            {mem.description}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </div>
+
+            </motion.div>
+          ) : (
+            
+            /* ================================================================= */
+            /*                         CAREGIVER HUB                             */
+            /* ================================================================= */
+            <motion.div
+              key="caregiver-view"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35 }}
+              className="space-y-8 flex-1"
+            >
+              
+              {/* Header Profile Dashboard Card */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                <div className="md:col-span-8 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
+                  <div className="w-16 h-16 rounded-full bg-[#E8F1EB] text-[#3A5D45] flex items-center justify-center border border-[#CEDFCF]">
+                    <User className="w-9 h-9" />
+                  </div>
+                  <div className="text-center md:text-left">
+                    <h2 className="text-2xl font-extrabold text-[#2C2C2A] flex items-center justify-center md:justify-start">
+                      {patientName}'s Clinical Profile
+                      <span className="ml-3 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        {patientStage} Stage
+                      </span>
+                    </h2>
+                    <p className="text-sm text-[#5E5D57] mt-1.5 leading-relaxed">
+                      Primary Caregiver: <strong className="text-[#3A5D45]">{caregiverName} ({caregiverRelationship})</strong>
+                    </p>
+                    <p className="text-xs text-[#8A8981] mt-0.5">
+                      Hobbies: <span className="italic">{patientHobbies}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Diagnostic Settings Edit Button */}
+                <div className="md:col-span-4 flex justify-center md:justify-end">
+                  <div className="flex space-x-3 w-full max-w-sm">
+                    {/* Routine Regenerator triggering key */}
+                    <button
+                      onClick={handleGenerateAiRoutine}
+                      disabled={loadingRoutine}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-3.5 bg-white border border-[#3A5D45] hover:bg-emerald-50 text-[#3A5D45] rounded-xl font-bold transition-all shadow-xs disabled:opacity-50"
+                    >
+                      {loadingRoutine ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      <span>Regen Routine</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        const nextName = prompt("Patient's Name:", patientName) || patientName;
+                        const nextStage = prompt("Dementia Stage (Mild, Moderate, Severe):", patientStage) || patientStage;
+                        const nextHobbies = prompt("Hobbies & Hobbies:", patientHobbies) || patientHobbies;
+                        const nextCName = prompt("Caregiver Name:", caregiverName) || caregiverName;
+                        setPatientName(nextName);
+                        setPatientStage(nextStage);
+                        setPatientHobbies(nextHobbies);
+                        setCaregiverName(nextCName);
+                      }}
+                      className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] text-[#5E5D57] rounded-xl hover:bg-[#EAE8DD] transition-all"
+                      title="Edit Profile Data"
+                    >
+                      <Settings className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+ 
+              {/* Clinical Session Control & Mode Settings */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Mode Control (Lucid vs Vivid) */}
+                <div className="lg:col-span-6 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#2C2C2A] flex items-center mb-1.5">
+                      <Sliders className="w-5 h-5 text-[#3A5D45] mr-2" />
+                      Active Care Mode Control
+                    </h3>
+                    <p className="text-xs text-[#7E7D76] mb-4 leading-relaxed">
+                      Toggle the companion mode in real time. Vivid Mode changes the interface, voice, and prompts to represent the chosen persona.
+                    </p>
+                    
+                    <div className="flex space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => { setPatientMode('lucid'); playSoundCue('pop'); }}
+                        className={`flex-1 p-4 rounded-2xl border text-left flex items-start space-x-3 transition-all duration-300 ${
+                          patientMode === 'lucid'
+                            ? 'bg-[#E8F1EB] border-[#3A5D45] text-[#3A5D45] ring-2 ring-[#3A5D45]/10 font-bold scale-[1.02]'
+                            : 'bg-[#FCFAF5] border-[#E3DFC2] text-[#5E5D57] hover:bg-[#EAE8DD]'
+                        }`}
+                      >
+                        <div className="p-2 rounded-xl bg-white text-[#3A5D45] shadow-xs">
+                          <Brain className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-sm block font-bold">Lucid Mode</span>
+                          <span className="text-[11px] font-normal leading-tight block mt-0.5 text-[#5E5D57]">
+                            Patient is grounded. Yadira acts as a helpful companion.
+                          </span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setPatientMode('vivid'); playSoundCue('chime'); }}
+                        className={`flex-1 p-4 rounded-2xl border text-left flex items-start space-x-3 transition-all duration-300 ${
+                          patientMode === 'vivid'
+                            ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-500/10 font-bold scale-[1.02]'
+                            : 'bg-[#FCFAF5] border-[#E3DFC2] text-[#5E5D57] hover:bg-[#EAE8DD]'
+                        }`}
+                      >
+                        <div className="p-2 rounded-xl bg-white text-rose-500 shadow-xs">
+                          <Heart className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-sm block font-bold">Vivid Mode</span>
+                          <span className="text-[11px] font-normal leading-tight block mt-0.5 text-[#5E5D57]">
+                            Patient is reaching. {representedPersona || 'Beth'} steps forward.
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Persona & Drift Controls */}
+                <div className="lg:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Persona Configuration */}
+                  <div className="p-4 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl flex flex-col justify-between space-y-3">
+                    <div>
+                      <label className="block text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-1">
+                        Represented Persona & Voice
+                      </label>
+                      <span className="text-[10px] text-[#7E7D76] leading-tight block mb-2">
+                        Configure who Yadira becomes and their voice preset.
+                      </span>
+                      
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#5E5D57] block mb-1">Name:</span>
+                          <input
+                            type="text"
+                            value={representedPersona}
+                            onChange={(e) => setRepresentedPersona(e.target.value)}
+                            placeholder="e.g. Beth, Thomas"
+                            className="w-full p-2 bg-white border border-[#C4C09E] rounded-xl text-xs font-bold text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
+                          />
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] font-bold text-[#5E5D57] block mb-1">Inworld Voice Preset:</span>
+                          <select
+                            value={
+                              ['Sarah', 'Ashley', 'Dennis'].includes(representedVoiceId)
+                                ? representedVoiceId
+                                : 'custom'
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val !== 'custom') {
+                                setRepresentedVoiceId(val);
+                              } else {
+                                const customId = prompt("Enter Inworld Custom Voice ID:", representedVoiceId) || representedVoiceId;
+                                setRepresentedVoiceId(customId);
+                              }
+                            }}
+                            className="w-full p-2 bg-white border border-[#C4C09E] rounded-xl text-xs font-bold text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
+                          >
+                            <option value="Sarah">Sarah (Warm Female - Default)</option>
+                            <option value="Ashley">Ashley (Warm Female - Natural)</option>
+                            <option value="Dennis">Dennis (Calm Male - Friendly)</option>
+                            <option value="custom">Custom Inworld Voice ID...</option>
+                          </select>
+
+                          {!['Sarah', 'Ashley', 'Dennis'].includes(representedVoiceId) && (
+                            <div className="mt-1.5 flex items-center space-x-1">
+                              <span className="text-[9px] font-mono bg-rose-50 text-rose-700 px-2 py-0.5 rounded border border-rose-100 font-bold block truncate max-w-full">
+                                Custom ID: {representedVoiceId}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const customId = prompt("Enter Inworld Custom Voice ID:", representedVoiceId) || representedVoiceId;
+                                  setRepresentedVoiceId(customId);
+                                }}
+                                className="text-[9px] text-[#3A5D45] hover:underline font-bold"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Proactive Drift Controls */}
+                  <div className="p-4 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-[#2C2C2A]">
+                          Proactive Reach
+                        </span>
+                        <span className="text-[10px] text-[#7E7D76] leading-tight mt-0.5">
+                          Reach out during silence.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDriftEnabled(!driftEnabled)}
+                        className={`w-11 h-6 rounded-full p-0.5 transition-all ${
+                          driftEnabled ? 'bg-[#3A5D45]' : 'bg-[#D8D5C4]'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full bg-white transition-all transform ${
+                          driftEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs font-bold text-[#5E5D57] mb-1">
+                        <span>Drift Timeout:</span>
+                        <span className="text-[#3A5D45] font-extrabold">{driftTimeoutSeconds}s</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="120"
+                        step="5"
+                        disabled={!driftEnabled}
+                        value={driftTimeoutSeconds}
+                        onChange={(e) => setDriftTimeoutSeconds(Number(e.target.value))}
+                        className="w-full accent-[#3A5D45] h-1.5 bg-[#E3DFC2] rounded-lg appearance-none cursor-pointer disabled:opacity-40"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid 1: Symptom Logger & Custom FAQ Override */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                {/* Daily Symptom & Care Logger */}
+                <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                  <div className="flex items-center space-x-2.5 mb-5">
+                    <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                      <Activity className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">Today's Daily Care Log</h3>
+                  </div>
+
+                  <form onSubmit={handleAddLog} className="space-y-4 flex-1 flex flex-col">
+                    
+                    {/* Confusion Level Tracker */}
+                    <div>
+                      <label className="block text-sm font-bold text-[#5E5D57] mb-2">
+                        Cognitive Confusion Level: <span className="text-[#3A5D45] font-extrabold">{logConfusion} / 5</span>
+                      </label>
+                      <div className="flex space-x-2.5">
+                        {[1, 2, 3, 4, 5].map((val) => (
+                          <button
+                            type="button"
+                            key={val}
+                            onClick={() => setLogConfusion(val)}
+                            className={`flex-1 py-2.5 rounded-xl border text-base font-bold transition-all ${
+                              logConfusion === val
+                                ? 'bg-[#3A5D45] text-white border-[#3A5D45]'
+                                : 'bg-[#FCFAF5] border-[#E3DFC2] text-[#5E5D57] hover:bg-[#EAE8DD]'
+                            }`}
+                          >
+                            {val === 1 ? 'Clear' : val === 5 ? 'Severe' : val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Mood Selector */}
+                    <div>
+                      <label className="block text-sm font-bold text-[#5E5D57] mb-1.5">Primary Patient Mood</label>
+                      <select
+                        value={logMood}
+                        onChange={(e: any) => setLogMood(e.target.value)}
+                        className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm font-bold text-[#2C2C2A] focus:ring-2 focus:ring-[#3A5D45] focus:border-transparent"
+                      >
+                        <option value="peaceful">Peaceful & Pleasant</option>
+                        <option value="anxious">Anxious & Agitated</option>
+                        <option value="restless">Restless & Wandering</option>
+                        <option value="sad">Sad & Quiet</option>
+                      </select>
+                    </div>
+
+                    {/* Quick Stats: Hydration & Sleep */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-[#5E5D57] mb-1">Hydration (Cups)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={logHydration}
+                          onChange={(e) => setLogHydration(Number(e.target.value))}
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm font-bold text-[#2C2C2A] focus:ring-2 focus:ring-[#3A5D45] focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-[#5E5D57] mb-1">Sleep (Hours)</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max="24"
+                          value={logSleep}
+                          onChange={(e) => setLogSleep(Number(e.target.value))}
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm font-bold text-[#2C2C2A] focus:ring-2 focus:ring-[#3A5D45] focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Medication Compliance Toggle */}
+                    <div className="flex items-center justify-between p-3.5 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-[#2C2C2A]">Vitamins & Meds Taken</span>
+                        <span className="text-xs text-[#7E7D76]">Confirm morning/evening compliance</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLogMeds(!logMeds)}
+                        className={`w-14 h-8 rounded-full p-1 transition-all ${
+                          logMeds ? 'bg-[#3A5D45]' : 'bg-[#D8D5C4]'
+                        }`}
+                      >
+                        <div className={`w-6 h-6 rounded-full bg-white transition-all transform ${
+                          logMeds ? 'translate-x-6' : 'translate-x-0'
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Clinical Notes */}
+                    <div>
+                      <label className="block text-sm font-bold text-[#5E5D57] mb-1">Caregiver Observation Notes</label>
+                      <textarea
+                        value={logNotes}
+                        onChange={(e) => setLogNotes(e.target.value)}
+                        placeholder="Detail behavior triggers, foods eaten, activities enjoyed..."
+                        rows={3}
+                        className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm text-[#2C2C2A] focus:ring-2 focus:ring-[#3A5D45] focus:border-transparent"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
+                    >
+                      <PlusCircle className="w-5 h-5" />
+                      <span>Log Daily Observations</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* FAQ override settings (Patient Reassurance Mapping) */}
+                <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="p-2 rounded-lg bg-[#FDF1F1] text-rose-500">
+                          <HelpCircle className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-xl font-bold text-[#2C2C2A]">Empathetic Reassurance Settings</h3>
+                      </div>
+                      <span className="text-xs font-bold text-[#7E7D76] uppercase tracking-wider bg-[#F4F1EA] px-2.5 py-1 rounded-full border border-[#D5D2B3]">
+                        FAQ Override
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                      Dementia patients often repeat anxious questions. Yadira overrides generic AI responses with these tailored, personal reassurances whenever the questions are asked.
+                    </p>
+
+                    <div className="space-y-4 max-h-[250px] overflow-y-auto pr-1">
+                      {faqs.map((faq) => (
+                        <div key={faq.id} className="p-4 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl relative">
+                          <button
+                            onClick={() => handleDeleteFaq(faq.id)}
+                            className="absolute top-3 right-3 text-red-400 hover:text-red-600 transition-all"
+                            title="Remove reassurance override"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
+                          <p className="text-xs font-bold uppercase tracking-wider text-[#5C8D71]">Anxious Question:</p>
+                          <p className="text-sm font-bold text-[#2C2C2A] mt-0.5">"{faq.question}"</p>
+                          <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mt-2.5">Yadira Reassuring Answer:</p>
+                          <p className="text-sm text-[#5E5D57] italic mt-0.5 leading-relaxed">"{faq.answer}"</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAddFaq} className="border-t border-[#E3DFC2] pt-4 mt-4 space-y-3">
+                    <p className="text-xs font-bold text-[#2C2C2A] uppercase tracking-wider">Add New Patient FAQ Reassurance:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={newFaqQuest}
+                        onChange={(e) => setNewFaqQuest(e.target.value)}
+                        placeholder="Patient repeats (e.g. Where is my key?)"
+                        className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-xs text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
+                      />
+                      <input
+                        type="text"
+                        value={newFaqAns}
+                        onChange={(e) => setNewFaqAns(e.target.value)}
+                        placeholder="Reassuring answer (e.g. Your keys are safe with Thomas.)"
+                        className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-xs text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!newFaqQuest || !newFaqAns}
+                      className="w-full py-3 bg-[#3A5D45] hover:bg-[#2B4633] text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Activate Reassurance Override</span>
+                    </button>
+                  </form>
+                </div>
+
+              </div>
+
+              {/* Grid 2: SVG Trend Visualizations & AI Clinical Summarizer */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                {/* Custom SVG Interactive Dashboard Charts */}
+                <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                          <TrendingUp className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-xl font-bold text-[#2C2C2A]">Patient Symptom Trends</h3>
+                      </div>
+                      <span className="text-xs font-bold text-[#3A5D45] bg-[#E8F1EB] px-2 py-1 rounded-full">
+                        7-Day Diagnostics
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                      Custom clinical charts mapping cognitive confusion and physical rest patterns to detect Sundowning symptoms.
+                    </p>
+
+                    {/* interactive SVG chart rendering */}
+                    <div className="w-full bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl p-4 flex flex-col space-y-4">
+                      <div className="text-xs font-bold text-[#5E5D57] uppercase tracking-wider flex items-center justify-between">
+                        <span>Cognitive Confusion Progress</span>
+                        <span className="text-[#3A5D45]">1 (Clear) - 5 (Confused)</span>
+                      </div>
+                      
+                      {/* Simple custom SVG chart */}
+                      <div className="relative h-44 w-full">
+                        <svg className="h-full w-full" viewBox="0 0 300 120">
+                          {/* Grid Lines */}
+                          <line x1="0" y1="20" x2="300" y2="20" stroke="#EAE6DA" strokeDasharray="3,3" />
+                          <line x1="0" y1="55" x2="300" y2="55" stroke="#EAE6DA" strokeDasharray="3,3" />
+                          <line x1="0" y1="90" x2="300" y2="90" stroke="#EAE6DA" strokeDasharray="3,3" />
+                          
+                          {/* Graph Path */}
+                          <path
+                            d={logs.map((l, idx) => {
+                              const x = (idx / (logs.length - 1)) * 280 + 10;
+                              // map confusion 1-5 to y coordinate 100 to 10
+                              const y = 110 - ((l.confusionLevel - 1) / 4) * 90;
+                              return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+                            }).join(' ')}
+                            fill="none"
+                            stroke="#3A5D45"
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                          />
+                          
+                          {/* Graph Dots */}
+                          {logs.map((l, idx) => {
+                            const x = (idx / (logs.length - 1)) * 280 + 10;
+                            const y = 110 - ((l.confusionLevel - 1) / 4) * 90;
+                            return (
+                              <g key={idx} className="group cursor-pointer">
+                                <circle cx={x} cy={y} r="6" fill="#3A5D45" stroke="white" strokeWidth="2" />
+                                <text x={x} y={y - 12} fontSize="8" fontWeight="bold" fill="#3A5D45" textAnchor="middle" className="opacity-0 group-hover:opacity-100 transition-opacity bg-white px-1">
+                                  {l.confusionLevel}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Labels */}
+                          {logs.map((l, idx) => {
+                            const x = (idx / (logs.length - 1)) * 280 + 10;
+                            return (
+                              <text key={idx} x={x} y="115" fontSize="8" fontWeight="bold" fill="#8A8981" textAnchor="middle">
+                                {l.date}
+                              </text>
+                            );
+                          })}
+                        </svg>
+                      </div>
+
+                      {/* Sleep & Hydration correlations */}
+                      <div className="grid grid-cols-2 gap-4 border-t border-[#E3DFC2] pt-3 text-xs text-[#5E5D57]">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 rounded-full bg-[#3A5D45]"></div>
+                          <span>Average Rest: <strong>{ (logs.reduce((sum, l) => sum + l.sleepHours, 0) / logs.length).toFixed(1) } hrs</strong></span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                          <span>Avg Hydration: <strong>{ (logs.reduce((sum, l) => sum + l.hydrationCups, 0) / logs.length).toFixed(1) } cups</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Historical Log list with delete controls */}
+                  <div className="border-t border-[#E3DFC2] pt-4 mt-4">
+                    <p className="text-xs font-bold text-[#2C2C2A] uppercase tracking-wider mb-2">Past Logs History:</p>
+                    <div className="max-h-[140px] overflow-y-auto pr-1 space-y-2 text-xs">
+                      {logs.slice().reverse().map((log) => (
+                        <div key={log.date} className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-[#2C2C2A] mr-2">{log.date}</span>
+                            <span className="text-[#3A5D45] font-bold mr-2">Confusion: {log.confusionLevel}/5</span>
+                            <span className="text-blue-600 font-bold mr-2">Hydration: {log.hydrationCups}c</span>
+                            <span className="text-purple-600 font-bold mr-2">Sleep: {log.sleepHours}h</span>
+                            <span className="text-[#7E7D76] block mt-1">"{log.notes}"</span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteLog(log.date)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Delete log"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI-Powered Clinical Advisor Insights Panel */}
+                <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                          <Shield className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-xl font-bold text-[#2C2C2A]">AI Clinical insights Advisor</h3>
+                      </div>
+                      <button
+                        onClick={handleGenerateInsights}
+                        disabled={loadingInsights}
+                        className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        {loadingInsights ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        <span>{aiInsights ? 'Refresh Analysis' : 'Synthesize Insights'}</span>
+                      </button>
+                    </div>
+
+                    <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                      Utilizes clinical prompts to aggregate daily patient activity, mood logs, and medication compliance trends into structured geriatric advice.
+                    </p>
+
+                    <AnimatePresence mode="wait">
+                      {loadingInsights ? (
+                        <motion.div
+                          key="loading-insights"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="p-8 text-center space-y-4"
+                        >
+                          <RefreshCw className="w-10 h-10 animate-spin text-[#3A5D45] mx-auto" />
+                          <div>
+                            <p className="text-base font-bold text-[#2C2C2A]">Analyzing Care Trends...</p>
+                            <p className="text-xs text-[#7E7D76] mt-1">Cross-referencing sleep logs, mood triggers, and confusion coordinates.</p>
+                          </div>
+                        </motion.div>
+                      ) : aiInsights ? (
+                        <motion.div
+                          key="results-insights"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="space-y-4"
+                        >
+                          {/* Clinical Overview */}
+                          <div className="p-4 bg-[#F5FAF6] border border-[#CEDFCF] rounded-2xl">
+                            <h4 className="text-sm font-bold text-[#3A5D45] uppercase tracking-wider flex items-center">
+                              🩺 Clinical Diagnostic Summary
+                            </h4>
+                            <p className="text-sm text-[#2C2C2A] leading-relaxed mt-2 font-medium">
+                              {aiInsights.clinicalSummary}
+                            </p>
+                          </div>
+
+                          {/* Critical Warnings */}
+                          {aiInsights.criticalAlerts && aiInsights.criticalAlerts.length > 0 && (
+                            <div className="p-4 bg-[#FFF2F2] border border-[#FFD9D9] rounded-2xl">
+                              <h4 className="text-sm font-bold text-red-700 uppercase tracking-wider flex items-center">
+                                <AlertTriangle className="w-4 h-4 mr-1.5" /> Critical Observation Triggers
+                              </h4>
+                              <ul className="list-disc list-inside text-xs font-bold text-red-900 mt-2 space-y-1">
+                                {aiInsights.criticalAlerts.map((alert, i) => (
+                                  <li key={i}>{alert}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Actionable Clinical Tips */}
+                          <div>
+                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-2">
+                              Actionable Caregiver Interventions:
+                            </h4>
+                            <div className="space-y-2">
+                              {aiInsights.actionableTips.map((tip, i) => (
+                                <div key={i} className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-xs text-[#5E5D57] leading-relaxed flex items-start space-x-2">
+                                  <span className="font-extrabold text-[#3A5D45] mt-0.5">{i+1}.</span>
+                                  <span>{tip}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="no-insights"
+                          className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl"
+                        >
+                          <Activity className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
+                          <p className="text-base font-bold text-[#5E5D57]">No Insights Generated</p>
+                          <p className="text-xs text-[#8A8981] mt-1 max-w-xs mx-auto">
+                            Click "Synthesize Insights" above to securely call Gemini and analyze your clinical patient logs.
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  
+                  <div className="bg-[#FAF9F5] border-t border-[#E3DFC2] p-3 rounded-xl text-[11px] text-[#8A8981] italic mt-4 text-center">
+                    Note: Yadira clinical outputs are generative and optimized to support familial caregiver comfort; they are not substitutes for certified geriatric practitioner prescriptions.
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Nurse Redirection Portal */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 rounded-lg bg-rose-50 text-rose-500">
+                      <HeartHandshake className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">Nurse Redirection Portal (Real-time Intervention)</h3>
+                  </div>
+                  <span className="text-xs font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                    Live Dispatch
+                  </span>
+                </div>
+
+                <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                  If the patient becomes restless, wanders, or repeatedly asks to leave their room, select a clinical redirection cue below. Yadira will dynamically translate it into comforting, relationship-anchored guidance from {representedPersona || 'Beth'} and speak it to the patient.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => handleSendRedirection("Patient is asking to go home")}
+                    className="p-4 bg-[#FCFAF5] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-[#E3DFC2] rounded-2xl text-left text-xs font-bold transition-all active:scale-95 shadow-xs"
+                  >
+                    🏡 Trigger Home Grounding
+                    <span className="block font-normal mt-1 text-[#7E7D76] hover:text-rose-600">
+                      "Patient wants to leave room to go home."
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendRedirection(`Patient is looking for their spouse (${representedPersona})`)}
+                    className="p-4 bg-[#FCFAF5] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-[#E3DFC2] rounded-2xl text-left text-xs font-bold transition-all active:scale-95 shadow-xs"
+                  >
+                    🍳 Trigger Kitchen Redirect
+                    <span className="block font-normal mt-1 text-[#7E7D76] hover:text-rose-600">
+                      "Patient is looking for their spouse."
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendRedirection("Patient is highly anxious and restless")}
+                    className="p-4 bg-[#FCFAF5] hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-[#E3DFC2] rounded-2xl text-left text-xs font-bold transition-all active:scale-95 shadow-xs"
+                  >
+                    ❤️ Trigger Calming Grounding
+                    <span className="block font-normal mt-1 text-[#7E7D76] hover:text-rose-600">
+                      "Patient is showing high sundowning agitation."
+                    </span>
+                  </button>
+                </div>
+
+                {/* Custom Redirection Text input */}
+                <div className="flex space-x-3 border-t border-[#E3DFC2] pt-4">
+                  <input
+                    type="text"
+                    id="nurse-custom-note"
+                    placeholder="Type custom nurse observation / redirection instruction here (e.g. Eleanor wants to go bake a pie)..."
+                    className="flex-1 p-3.5 border border-[#C4C09E] rounded-xl text-sm bg-[#FCFAF5] focus:ring-2 focus:ring-[#3A5D45] text-[#2C2C2A] font-medium"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const input = e.target as HTMLInputElement;
+                        if (input.value.trim()) {
+                          handleSendRedirection(input.value);
+                          input.value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('nurse-custom-note') as HTMLInputElement;
+                      if (input && input.value.trim()) {
+                        handleSendRedirection(input.value);
+                        input.value = '';
+                      }
+                    }}
+                    className="px-6 py-3.5 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-95"
+                  >
+                    Dispatch Cue
+                  </button>
+                </div>
+              </div>
+
+              {/* Memory Bank Editor */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">Memory Bank Editor</h3>
+                  </div>
+                  <button
+                    id="btn-open-memory-modal"
+                    onClick={() => { playSoundCue('pop'); setShowMemModal(true); }}
+                    className="flex items-center space-x-1 px-4 py-2 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Memory Card</span>
+                  </button>
+                </div>
+
+                <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                  Store and organize treasured moments. These memories directly ground Yadira AI's dialogue, helping to guide the patient through periods of forgetfulness.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {memories.map((mem) => {
+                    const grad = getThemeGradient(mem.imageTheme);
+                    return (
+                      <div key={mem.id} className="p-5 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl flex flex-col justify-between shadow-xs relative">
+                        <button
+                          onClick={() => handleDeleteMemory(mem.id)}
+                          className="absolute top-4 right-4 text-[#A6A27B] hover:text-red-500 transition-all p-1"
+                          title="Delete memory"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                        <div>
+                          <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-full bg-white border border-[#D5D2B3] text-[#5C8D71]">
+                            {mem.relationshipOrEra}
+                          </span>
+                          <div className={`mt-3 h-14 w-full rounded-lg bg-gradient-to-r ${grad} flex items-center justify-center border text-2xl`}>
+                            {mem.imageTheme === 'wedding' && '💍🌹🌸'}
+                            {mem.imageTheme === 'family' && '🏡🐾❤️'}
+                            {mem.imageTheme === 'nature' && '🌲🏔️☀️'}
+                            {mem.imageTheme === 'retro' && '📸⏳👴'}
+                            {mem.imageTheme === 'home' && '🛋️☕🍽️'}
+                          </div>
+                          <h4 className="text-lg font-bold text-[#2C2C2A] mt-3">{mem.title}</h4>
+                          <p className="text-xs text-[#5E5D57] mt-2 leading-relaxed">{mem.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Add Memory Modal Dialog */}
+              {showMemModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-white max-w-md w-full p-6 rounded-3xl border border-[#E3DFC2] shadow-xl space-y-4"
+                  >
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">Add Treasured Memory Card</h3>
+                    <form onSubmit={handleAddMemory} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#5E5D57] mb-1">Memory Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={newMemTitle}
+                          onChange={(e) => setNewMemTitle(e.target.value)}
+                          placeholder="Wedding Day, Family Dog..."
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#5E5D57] mb-1">Era or Person Reference</label>
+                        <input
+                          type="text"
+                          value={newMemEra}
+                          onChange={(e) => setNewMemEra(e.target.value)}
+                          placeholder="e.g., Husband, Summer 1980"
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#5E5D57] mb-1">Detailed Narrative Story</label>
+                        <textarea
+                          required
+                          rows={3}
+                          value={newMemDesc}
+                          onChange={(e) => setNewMemDesc(e.target.value)}
+                          placeholder="Write a warm, sensory narrative story. Use active, cheerful phrasing."
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#5E5D57] mb-1">Card Graphic Theme</label>
+                        <select
+                          value={newMemTheme}
+                          onChange={(e: any) => setNewMemTheme(e.target.value)}
+                          className="w-full p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl text-sm"
+                        >
+                          <option value="family">Family (Warm, Home, Pets)</option>
+                          <option value="nature">Nature (Scenic, Outdoors, Trips)</option>
+                          <option value="wedding">Wedding (Romantic, Celebration)</option>
+                          <option value="retro">Historical / Retro (Eras, Youth)</option>
+                          <option value="home">Home (Daily Life, Comfort)</option>
+                        </select>
+                      </div>
+                      <div className="flex space-x-3 pt-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowMemModal(false)}
+                          className="flex-1 py-3 bg-[#FCFAF5] hover:bg-[#EAE8DD] border border-[#E3DFC2] rounded-xl text-sm font-bold text-[#5E5D57]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-3 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-sm font-bold"
+                        >
+                          Create Memory Card
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Footer Branding */}
+      <footer className="bg-white border-t border-[#E3DFC2] py-6 px-4 text-center text-xs text-[#7E7D76] font-medium mt-12">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
+          <div className="flex items-center space-x-2">
+            <HeartHandshake className="w-4 h-4 text-[#3A5D45]" />
+            <span>Yadira Dementia Companion Hub — Pitch Protocol</span>
+          </div>
+          <p className="text-xs">
+            Optimized for XPRIZE Dementia Care, leveraging secure server-side Gemini 3.5 LLMs.
+          </p>
+        </div>
+      </footer>
+    </div>
+  );
+}
