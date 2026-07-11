@@ -1037,7 +1037,7 @@ function AppContent() {
       activeTab === 'patient' && patientMode === 'vivid'
         ? 'bg-[#FCF5F5]'
         : 'bg-[#F4F1EA]'
-    } relative overflow-hidden`}>
+    } relative overflow-hidden overflow-x-clip`}>
       <div className="pointer-events-none absolute inset-0">
         <motion.div
           className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
@@ -1060,27 +1060,27 @@ function AppContent() {
       </div>
       
       {/* Dynamic Header */}
-      <header className="relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center space-x-3">
+      <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-3 md:gap-4 shadow-xs">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
             <Brain className="w-6 h-6" id="app-logo-icon" />
           </div>
           <div>
-            <span className="text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
+            <span className="brand-title text-xl sm:text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
             <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
               XPRIZE Dementia Companion
             </span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2 flex-wrap">
           {/* Global Tab Switcher */}
           {!isPatientSession && (
-            <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
+            <div className="tab-switcher flex flex-wrap gap-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2] w-full sm:w-auto">
               <button
                 id="tab-patient"
                 onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ${
                   activeTab === 'patient'
                     ? 'bg-white text-[#3A5D45] shadow-xs scale-[1.02]'
                     : 'text-[#7E7D76] hover:text-[#3A5D45]'
@@ -1092,7 +1092,7 @@ function AppContent() {
               <button
                 id="tab-caregiver"
                 onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ${
                   activeTab === 'caregiver'
                     ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
                     : 'text-[#5E5D57] hover:text-[#3A5D45]'
@@ -1116,7 +1116,7 @@ function AppContent() {
                 await logout();
               }
             }}
-            className="p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-red-600 hover:border-red-200 transition-all"
+            className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-red-600 hover:border-red-200 transition-all"
             title="Log out and return to the login screen"
           >
             <LogOut className="w-5 h-5" />
@@ -1125,7 +1125,7 @@ function AppContent() {
       </header>
 
       {/* Main Content Stage */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 flex flex-col">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
         <AnimatePresence mode="wait">
           {activeTab === 'patient' ? (
             
@@ -1328,13 +1328,13 @@ function AppContent() {
                 <div className="p-4 bg-white border-t border-[#E3DFC2] flex flex-col gap-3">
                   {/* Voice and Media Controls */}
                   <div className="flex gap-3 flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-0 sm:min-w-[200px]">
                       <VoiceInput
                         onTranscript={(text, emotion) => handleSendMessage(text, emotion)}
                         disabled={isTyping}
                       />
                     </div>
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-0 sm:min-w-[200px]">
                       <MediaUpload
                         onMediaAnalyzed={(insight) => {
                           const msg = `I see something interesting!`;
@@ -1346,7 +1346,7 @@ function AppContent() {
                   </div>
 
                   {/* Text Input */}
-                  <div className="flex space-x-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="text"
                       value={userInput}
@@ -1361,7 +1361,7 @@ function AppContent() {
                       id="btn-send-message"
                       onClick={() => handleSendMessage(userInput)}
                       disabled={isTyping || !userInput.trim()}
-                      className="p-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
+                      className="w-full sm:w-auto p-4 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-2xl font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center sm:min-w-[60px]"
                     >
                       <Send className="w-7 h-7" />
                     </button>
@@ -1503,7 +1503,7 @@ function AppContent() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.35 }}
-              className="space-y-8 flex-1"
+              className="caregiver-layout space-y-6 md:space-y-8 flex-1 min-w-0"
             >
               
               {/* Header Profile Dashboard Card */}
@@ -1513,9 +1513,9 @@ function AppContent() {
                     <User className="w-9 h-9" />
                   </div>
                   <div className="text-center md:text-left">
-                    <h2 className="text-2xl font-extrabold text-[#2C2C2A] flex items-center justify-center md:justify-start">
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-[#2C2C2A] flex flex-col sm:flex-row items-center justify-center md:justify-start gap-2 sm:gap-0">
                       {patientName}'s Clinical Profile
-                      <span className="ml-3 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      <span className="sm:ml-3 text-xs font-bold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                         {patientStage} Stage
                       </span>
                     </h2>
@@ -1530,7 +1530,7 @@ function AppContent() {
                 
                 {/* Diagnostic Settings Edit Button */}
                 <div className="md:col-span-4 flex justify-center md:justify-end">
-                  <div className="flex space-x-3 w-full max-w-sm">
+                  <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
                     {/* Routine Regenerator triggering key */}
                     <button
                       onClick={handleGenerateAiRoutine}
@@ -1574,7 +1574,7 @@ function AppContent() {
                       Toggle the companion mode in real time. Vivid Mode changes the interface, voice, and prompts to represent the chosen persona.
                     </p>
                     
-                    <div className="flex space-x-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <button
                         type="button"
                         onClick={() => { setPatientMode('lucid'); playSoundCue('pop'); }}
@@ -1856,8 +1856,8 @@ function AppContent() {
                 {/* FAQ override settings (Patient Reassurance Mapping) */}
                 <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <div className="p-2 rounded-lg bg-[#FDF1F1] text-rose-500">
                           <HelpCircle className="w-6 h-6" />
                         </div>
@@ -2153,9 +2153,9 @@ function AppContent() {
                     <div className="p-2 rounded-lg bg-rose-50 text-rose-500">
                       <HeartHandshake className="w-6 h-6" />
                     </div>
-                    <h3 className="text-xl font-bold text-[#2C2C2A]">Nurse Redirection Portal (Real-time Intervention)</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2A] break-words">Nurse Redirection Portal (Real-time Intervention)</h3>
                   </div>
-                  <span className="text-xs font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
+                  <span className="self-start sm:self-auto text-xs font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
                     Live Dispatch
                   </span>
                 </div>
@@ -2200,12 +2200,12 @@ function AppContent() {
                 </div>
 
                 {/* Custom Redirection Text input */}
-                <div className="flex space-x-3 border-t border-[#E3DFC2] pt-4">
+                <div className="nurse-dispatch-row flex flex-col sm:flex-row gap-3 border-t border-[#E3DFC2] pt-4">
                   <input
                     type="text"
                     id="nurse-custom-note"
                     placeholder="Type custom nurse observation / redirection instruction here (e.g. Eleanor wants to go bake a pie)..."
-                    className="flex-1 p-3.5 border border-[#C4C09E] rounded-xl text-sm bg-[#FCFAF5] focus:ring-2 focus:ring-[#3A5D45] text-[#2C2C2A] font-medium"
+                    className="w-full min-w-0 flex-1 p-3.5 border border-[#C4C09E] rounded-xl text-sm bg-[#FCFAF5] focus:ring-2 focus:ring-[#3A5D45] text-[#2C2C2A] font-medium"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         const input = e.target as HTMLInputElement;
@@ -2225,7 +2225,7 @@ function AppContent() {
                         input.value = '';
                       }
                     }}
-                    className="px-6 py-3.5 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-95"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-3.5 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-sm font-bold shadow-xs transition-all active:scale-95"
                   >
                     Dispatch Cue
                   </button>
@@ -2234,16 +2234,16 @@ function AppContent() {
 
               {/* Persona File — session-to-session memory (the continuity architecture) */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
                       <MessageSquare className="w-6 h-6" />
                     </div>
-                    <h3 className="text-xl font-bold text-[#2C2C2A]">
+                    <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2A] break-words">
                       Persona File — What {representedPersona || 'Beth'} Remembers
                     </h3>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={handleStartFreshSession}

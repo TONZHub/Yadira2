@@ -1,1 +1,35 @@
 @import "tailwindcss";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 480px) {
+  .app-header {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .tab-switcher button {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.625rem;
+  }
+}
