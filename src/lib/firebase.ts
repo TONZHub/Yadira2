@@ -39,17 +39,26 @@ if (isFirebaseConfigured) {
 
 export { app, db, auth };
 
+// Get current user ID (from localStorage or Firebase auth)
+export function getCurrentUserId(): string {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('yadira_user_id');
+    if (stored) return stored;
+  }
+  return 'default-circle'; // Fallback for backward compatibility
+}
+
 // ------------------------------------------------------------------
-// Firestore layout (one "care circle" per household):
+// Firestore layout (one "care circle" per user/household):
 //
-//   careCircles/{circleId}/
+//   careCircles/{userId}/
 //     profile        (doc)        — CaregiverProfile
 //     memories/{id}  (collection) — Memory
 //     faqs/{id}      (collection) — CustomFAQ
 //     logs/{id}      (collection) — DailyLog (id = date)
 //     routine/{id}   (collection) — RoutineItem
 //
-// For the prototype we use a single fixed circle id. When Auth is
-// wired in, circleId becomes derived from the caregiver's account.
+// When Auth is wired in, userId comes from Firebase Auth.
+// For local-only/localStorage mode, userId = 'default-circle'.
 // ------------------------------------------------------------------
 export const CIRCLE_ID = 'default-circle';
