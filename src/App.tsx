@@ -34,6 +34,7 @@ import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen } from './components
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
+import { playMemorySoundscape } from './lib/soundscapes';
 import { ChatMessageSkeleton, MemorySkeleton, RoutineSkeleton, LogSkeleton } from './components/LoadingSkeletons';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
@@ -1471,8 +1472,15 @@ function AppContent() {
                             </span>
                             <button
                               onClick={() => {
-                                playSoundCue('pop');
-                                speakText(`Let me share this memory with you, dear. It is titled: ${mem.title}. ${mem.description}`);
+                                // Sound first, words second — the soundscape
+                                // (a public-domain melody + ambience matched to
+                                // the memory's theme) opens the door, then the
+                                // narration walks through it over a quiet bed.
+                                const soundscape = playMemorySoundscape(mem.imageTheme);
+                                window.setTimeout(() => {
+                                  soundscape?.duck();
+                                  speakText(`Let me share this memory with you, dear. It is titled: ${mem.title}. ${mem.description}`);
+                                }, soundscape ? 2800 : 0);
                               }}
                               className="flex items-center space-x-1.5 px-3 py-1 bg-[#3A5D45] text-white hover:bg-[#2B4633] rounded-lg transition-all text-xs font-semibold shadow-xs"
                             >

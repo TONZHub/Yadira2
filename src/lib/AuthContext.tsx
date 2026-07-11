@@ -221,9 +221,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const enterPatientMode = () => {
+    // Always hydrate the user state, not just when no token exists. Since
+    // sessions stopped auto-restoring on fresh visits, `user` is null on the
+    // login screen even when a valid token sits in localStorage — previously
+    // this function skipped setUser in that case and the tap did nothing.
     const existingToken = localStorage.getItem('yadira_token');
-    const existingUserId = localStorage.getItem('yadira_user_id');
-    if (!existingToken || !existingUserId) {
+    const payload = existingToken ? parseJwtPayload(existingToken) : null;
+    const uid = payload?.uid || payload?.user_id || payload?.sub;
+    if (existingToken && uid) {
+      setUser({ uid, email: payload?.email ?? null });
+      setToken(existingToken);
+      setError(null);
+    } else {
       startLocalSession('patient@yadira.local', setUser, setToken, setError);
     }
     sessionStorage.setItem('yadira_session_role', 'patient');
