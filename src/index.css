@@ -63,8 +63,12 @@ svg {
     padding: 0.5rem 0.625rem;
   }
 
-  /* Prevent any fixed-width element inside the patient view from overflowing */
-  .patient-view * {
+  /* Prevent known fixed-width elements inside the patient view from overflowing */
+  .patient-view img,
+  .patient-view video,
+  .patient-view input,
+  .patient-view button,
+  .patient-view textarea {
     max-width: 100%;
   }
 

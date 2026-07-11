@@ -1303,7 +1303,7 @@ function AppContent() {
                       id={`patient-faq-${faq.id}`}
                       onClick={() => handleSendMessage(faq.question)}
                       disabled={isTyping}
-                      className="faq-chip w-full sm:w-auto px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 active:scale-95 text-left max-w-full whitespace-normal break-words shadow-xs"
+                      className="faq-chip w-full sm:w-auto px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 active:scale-95 text-left whitespace-normal break-words shadow-xs"
                     >
                       {faq.question}
                     </button>
