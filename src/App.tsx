@@ -374,9 +374,6 @@ function AppContent() {
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioUnlockedRef = useRef(false);
   const startupGreetingSpokenRef = useRef(false);
-  // Track the last user message ID that triggered a drift reach, to prevent
-  // the drift from looping by re-triggering on its own model messages.
-  const lastDriftedAfterMsgRef = useRef<string | null>(null);
 
   // Unlock browser audio autoplay policy on the first user interaction.
   // This is critical so that Inworld audio can play even when the chat
@@ -441,6 +438,17 @@ function AppContent() {
   const lastUserMsg = chatMessages.filter(m => m.role === 'user').slice(-1)[0];
   const lastUserMsgId = lastUserMsg?.id ?? null;
 
+  // She reaches into the silence at most twice, then rests until the patient
+  // says something. Counted from the persisted transcript itself (trailing
+  // drift messages since the last user message), so page reloads can't re-arm
+  // an endless stream of unanswered reaches into an empty room.
+  const MAX_UNANSWERED_REACHES = 2;
+  let trailingDriftReaches = 0;
+  for (let i = chatMessages.length - 1; i >= 0; i--) {
+    if (chatMessages[i].role === 'user') break;
+    if (chatMessages[i].id.startsWith('msg-drift-')) trailingDriftReaches++;
+  }
+
   useEffect(() => {
     if (activeTab !== 'patient' || !driftEnabled) return;
     if (isTyping) return;
@@ -448,13 +456,10 @@ function AppContent() {
     // countdown — otherwise the timer runs out while she's still talking.
     if (isSpeaking) return;
 
-    // Don't fire drift if we already fired after this same user message
-    if (lastUserMsgId === lastDriftedAfterMsgRef.current) return;
+    // The reaches went unanswered — rest, stay present, don't pester.
+    if (trailingDriftReaches >= MAX_UNANSWERED_REACHES) return;
 
     const triggerDriftReach = async () => {
-      // Mark this user message as already handled before firing
-      lastDriftedAfterMsgRef.current = lastUserMsgId;
-
       try {
         // Auth middleware protects /api/drift — without the Bearer header this
         // call 401s and the proactive reach silently never happens.
@@ -492,7 +497,7 @@ function AppContent() {
     }, driftTimeoutSeconds * 1000);
 
     return () => clearTimeout(timer);
-  }, [lastUserMsgId, userInput, driftEnabled, driftTimeoutSeconds, activeTab, isTyping, isSpeaking, patientName, representedPersona, memories]);
+  }, [lastUserMsgId, trailingDriftReaches, userInput, driftEnabled, driftTimeoutSeconds, activeTab, isTyping, isSpeaking, patientName, representedPersona, memories]);
 
   // ---- Session reflection: writing the persona file ----
   // Every few patient turns (and whenever the tab is hidden), the transcript
