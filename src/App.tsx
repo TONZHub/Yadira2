@@ -366,8 +366,11 @@ function AppContent() {
   const [voiceEnabled, setVoiceEnabled] = useState(isPatientSession);
   const [soundFeedback, setSoundFeedback] = useState(true);
 
-  // Ref for chat auto-scrolling
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  // Ref for chat auto-scrolling — the message-log container itself, NOT a
+  // sentinel div: scrollIntoView() scrolls every scrollable ancestor, and the
+  // root overflow-hidden wrapper is programmatically scrollable, so on load it
+  // silently shifted the whole app up ~100px and clipped the header.
+  const messageLogRef = useRef<HTMLDivElement>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioUnlockedRef = useRef(false);
   const startupGreetingSpokenRef = useRef(false);
@@ -402,9 +405,12 @@ function AppContent() {
 
   // (localStorage sync now handled inside useStore — with Firestore on top)
 
-  // Scroll to bottom of chat
+  // Scroll to bottom of chat — scoped to the log container only
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const log = messageLogRef.current;
+    if (log) {
+      log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+    }
   }, [chatMessages, isTyping]);
 
   // Handle active mode transition dynamically (update greeting and speak it)
@@ -1146,8 +1152,9 @@ function AppContent() {
                 patientMode === 'vivid' ? 'border-rose-200 ring-2 ring-rose-500/5' : 'border-[#E3DFC2]'
               }`}>
                 
-                {/* Active Yadira Header */}
-                <div className={`border-b px-6 py-4 flex items-center justify-between transition-all duration-500 ${
+                {/* Active Yadira Header — extra top padding so the avatar and
+                    its pulsing halo sit clear of the card's clipped top edge */}
+                <div className={`border-b px-6 pt-7 pb-4 flex items-center justify-between transition-all duration-500 ${
                   patientMode === 'vivid' ? 'bg-[#FCF6F6] border-rose-100' : 'bg-[#FAF9F5] border-[#E3DFC2]'
                 }`}>
                   <div className="flex items-center space-x-4">
@@ -1221,7 +1228,7 @@ function AppContent() {
                 </div>
 
                 {/* Message Log */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FCFAF5]">
+                <div ref={messageLogRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FCFAF5]">
                   {chatMessages.map((msg) => (
                     <div
                       key={msg.id}
@@ -1289,7 +1296,6 @@ function AppContent() {
                     </div>
                   )}
                   
-                  <div ref={chatEndRef} />
                 </div>
 
                 {/* Pre-configured Helpful Anxious Cues */}
