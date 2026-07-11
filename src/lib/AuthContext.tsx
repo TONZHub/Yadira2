@@ -71,14 +71,23 @@ function isFirebaseAuthConfigError(err: any): boolean {
   );
 }
 
+// Sessions are only resumed within the SAME browser session — the marker
+// lives in sessionStorage, which survives reloads (so a mid-conversation
+// refresh never logs anyone out) but not new tabs/visits. A fresh visit
+// always starts at the role-selection screen, even if a token or Firebase
+// user is still lying around from last time.
+function activeSessionRole(): 'caregiver' | 'patient' | null {
+  if (typeof window === 'undefined') return null;
+  const role = sessionStorage.getItem('yadira_session_role');
+  return role === 'patient' || role === 'caregiver' ? role : null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sessionRole, setSessionRole] = useState<'caregiver' | 'patient'>(() => {
-    if (typeof window === 'undefined') return 'caregiver';
-    const storedRole = sessionStorage.getItem('yadira_session_role');
-    return storedRole === 'patient' ? 'patient' : 'caregiver';
+    return activeSessionRole() === 'patient' ? 'patient' : 'caregiver';
   });
   const [user, setUser] = useState<{ uid: string; email: string | null } | null>(() => {
-    if (typeof window === 'undefined') return null;
+    if (!activeSessionRole()) return null;
     const existingToken = localStorage.getItem('yadira_token');
     if (!existingToken) return null;
     const payload = parseJwtPayload(existingToken);
@@ -87,8 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { uid, email: payload?.email ?? null };
   });
   const [token, setToken] = useState<string | null>(() => {
-    // Load token from localStorage on init
-    if (typeof window !== 'undefined') {
+    // Load token from localStorage on init — only for a live browser session
+    if (activeSessionRole() && typeof window !== 'undefined') {
       return localStorage.getItem('yadira_token');
     }
     return null;
@@ -104,17 +113,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // User is logged in
+      const role = activeSessionRole();
+      if (firebaseUser && role) {
+        // Firebase user with a live browser session — refresh the token and
+        // keep the session's existing role (don't force caregiver: the same
+        // device may have been handed to a patient).
         const newToken = await firebaseUser.getIdToken();
         setUser({ uid: firebaseUser.uid, email: firebaseUser.email });
         setToken(newToken);
         localStorage.setItem('yadira_token', newToken);
         localStorage.setItem('yadira_user_id', firebaseUser.uid);
-        sessionStorage.setItem('yadira_session_role', 'caregiver');
-        setSessionRole('caregiver');
+        setSessionRole(role);
         setError(null);
-      } else {
+      } else if (!firebaseUser && role) {
         // No Firebase user: keep local demo/patient sessions if present.
         const existingToken = localStorage.getItem('yadira_token');
         const payload = existingToken ? parseJwtPayload(existingToken) : null;
@@ -122,8 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (existingToken && uid) {
           setUser({ uid, email: payload?.email ?? null });
           setToken(existingToken);
-          const storedRole = sessionStorage.getItem('yadira_session_role');
-          setSessionRole(storedRole === 'patient' ? 'patient' : 'caregiver');
+          setSessionRole(role);
         } else {
           setUser(null);
           setToken(null);
@@ -132,6 +142,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           sessionStorage.removeItem('yadira_session_role');
           setSessionRole('caregiver');
         }
+      } else {
+        // Fresh visit (no session marker): stay on the login/role-selection
+        // screen regardless of any lingering token or Firebase user.
+        setUser(null);
+        setToken(null);
       }
       setLoading(false);
     });
