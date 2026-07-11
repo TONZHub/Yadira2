@@ -127,7 +127,7 @@ const DEFAULT_ROUTINE: RoutineItem[] = [
 ];
 
 function AppContent() {
-  const { user, sessionRole } = useAuth();
+  const { user, sessionRole, logout } = useAuth();
   const isPatientSession = sessionRole === 'patient';
   const { error: toastError, success: toastSuccess } = useToast();
   const [demoSeeded, setDemoSeeded] = useState(false);
@@ -1073,35 +1073,55 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Global Tab Switcher */}
-        {!isPatientSession && (
-          <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
-            <button
-              id="tab-patient"
-              onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                activeTab === 'patient'
-                  ? 'bg-white text-[#3A5D45] shadow-xs scale-[1.02]'
-                  : 'text-[#7E7D76] hover:text-[#3A5D45]'
-              }`}
-            >
-              <Heart className="w-4 h-4 text-rose-500" />
-              <span>Preview Patient View</span>
-            </button>
-            <button
-              id="tab-caregiver"
-              onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                activeTab === 'caregiver'
-                  ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
-                  : 'text-[#5E5D57] hover:text-[#3A5D45]'
-              }`}
-            >
-              <Sliders className="w-4 h-4" />
-              <span>Caregiver Hub</span>
-            </button>
-          </div>
-        )}
+        <div className="flex items-center space-x-2">
+          {/* Global Tab Switcher */}
+          {!isPatientSession && (
+            <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
+              <button
+                id="tab-patient"
+                onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                  activeTab === 'patient'
+                    ? 'bg-white text-[#3A5D45] shadow-xs scale-[1.02]'
+                    : 'text-[#7E7D76] hover:text-[#3A5D45]'
+                }`}
+              >
+                <Heart className="w-4 h-4 text-rose-500" />
+                <span>Preview Patient View</span>
+              </button>
+              <button
+                id="tab-caregiver"
+                onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                  activeTab === 'caregiver'
+                    ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
+                    : 'text-[#5E5D57] hover:text-[#3A5D45]'
+                }`}
+              >
+                <Sliders className="w-4 h-4" />
+                <span>Caregiver Hub</span>
+              </button>
+            </div>
+          )}
+
+          {/* Log out — returns to the role-selection/login screen. Confirmed
+              first so a patient can't accidentally end their own session. */}
+          <button
+            id="btn-logout"
+            onClick={async () => {
+              const message = isPatientSession
+                ? 'Return to the Yadira login screen? (Caregiver use only)'
+                : 'Log out of Yadira and return to the login screen?';
+              if (window.confirm(message)) {
+                await logout();
+              }
+            }}
+            className="p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-red-600 hover:border-red-200 transition-all"
+            title="Log out and return to the login screen"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </header>
 
       {/* Main Content Stage */}
