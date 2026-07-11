@@ -122,9 +122,15 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
     if (transcript.trim()) {
       setIsAnalyzing(true);
       try {
+        const token = localStorage.getItem('yadira_token');
+        const headers: HeadersInit = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('/api/analyze-emotion', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ text: transcript.trim() }),
         });
 

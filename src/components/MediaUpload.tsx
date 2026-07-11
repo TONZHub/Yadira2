@@ -64,9 +64,15 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
   const analyzeMedia = async (base64Data: string) => {
     setIsLoading(true);
     try {
+      const token = localStorage.getItem('yadira_token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/analyze-media', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ media: base64Data, mediaType: 'image' }),
       });
 

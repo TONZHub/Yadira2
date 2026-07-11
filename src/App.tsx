@@ -23,13 +23,15 @@ import {
   PlusCircle,
   HelpCircle,
   Shield,
-  HeartHandshake
+  HeartHandshake,
+  LogOut
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem } from './types';
 import { DEFAULT_PROFILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { VoiceInput, MediaUpload, EmotionBadge } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen } from './components';
+import { AuthProvider, useAuth } from './lib/AuthContext';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -121,7 +123,16 @@ const DEFAULT_ROUTINE: RoutineItem[] = [
   }
 ];
 
-export default function App() {
+function AppContent() {
+  // Helper to add auth token to API requests
+  const apiCall = async (url: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem('yadira_token');
+    const headers = new Headers(options.headers || {});
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return fetch(url, { ...options, headers });
+  };
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>('patient');
 
@@ -501,7 +512,7 @@ export default function App() {
         contextualMessage += ` [Media insight: ${mediaInsight.description}. Emotion: ${mediaInsight.emotion}]`;
       }
 
-      const response = await fetch('/api/chat', {
+      const response = await apiCall('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2054,5 +2065,34 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// Wrapper component with Auth
+function App() {
+  const { user, loading, logout } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center">
+        <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} className="text-white text-lg font-semibold">
+          Loading Yadira...
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <AppContent />;
+}
+
+export default function AppWithProvider() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   );
 }

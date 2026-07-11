@@ -3,11 +3,15 @@ import { GoogleGenAI, Type } from '@google/genai';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { authMiddleware } from './auth';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
+// Apply auth middleware to all /api routes
+app.use('/api/', authMiddleware);
 
 // API Keys
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
