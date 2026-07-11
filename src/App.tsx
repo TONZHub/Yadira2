@@ -609,8 +609,8 @@ function AppContent() {
   };
 
   // Text To Speech helper
-  const speakText = (text: string) => {
-    if (!voiceEnabled || activeTab !== 'patient') return;
+  // Core TTS — no tab/voice guard, used internally and by caregiver memory preview.
+  const speakTextDirect = (text: string) => {
 
     // Stop any currently playing speech/audio
     if (activeAudioRef.current) {
@@ -696,6 +696,12 @@ function AppContent() {
       console.error('[TTS] SpeechSynthesis fallback error:', e);
       setIsSpeaking(false);
     }
+  };
+
+  // Public wrapper — only speaks when voice is enabled and on the patient tab.
+  const speakText = (text: string) => {
+    if (!voiceEnabled || activeTab !== 'patient') return;
+    speakTextDirect(text);
   };
 
   // Play a soft pleasant tone when patient does certain actions (sound therapy cue)
@@ -1479,7 +1485,9 @@ function AppContent() {
                                 const soundscape = playMemorySoundscape(mem.imageTheme);
                                 window.setTimeout(() => {
                                   soundscape?.duck();
-                                  speakText(`Let me share this memory with you, dear. It is titled: ${mem.title}. ${mem.description}`);
+                                  // Use speakTextDirect so the narration works from
+                                  // the caregiver tab regardless of voiceEnabled state.
+                                  speakTextDirect(`Let me share this memory with you, dear. It is titled: ${mem.title}. ${mem.description}`);
                                 }, soundscape ? 2800 : 0);
                               }}
                               className="flex items-center space-x-1.5 px-3 py-1 bg-[#3A5D45] text-white hover:bg-[#2B4633] rounded-lg transition-all text-xs font-semibold shadow-xs"
