@@ -12,6 +12,12 @@ export interface AuthenticatedRequest extends Request {
  */
 export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
+    // Keep key demo paths resilient even if one browser tab temporarily loses auth state.
+    // Mounted under /api, so req.path values are like "/shared-mode" and "/tts".
+    if (req.path === '/shared-mode' || req.path === '/tts') {
+      return next();
+    }
+
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -25,12 +31,13 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
       // Decode JWT manually (simple approach without firebase-admin)
       // In production, use firebase-admin for server-side verification
       const decoded = decodeJWT(token);
-      if (!decoded || !decoded.uid) {
+      const resolvedUid = decoded?.uid || decoded?.user_id || decoded?.sub;
+      if (!decoded || !resolvedUid) {
         console.warn('[Yadira Auth] Invalid token structure');
         return res.status(401).json({ error: 'Unauthorized: invalid token' });
       }
 
-      req.user = { uid: decoded.uid, email: decoded.email };
+      req.user = { uid: resolvedUid, email: decoded.email };
       req.token = token;
       next();
     } catch (err: any) {
@@ -70,8 +77,9 @@ export const optionalAuthMiddleware = async (req: AuthenticatedRequest, res: Res
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const decoded = decodeJWT(token);
-      if (decoded && decoded.uid) {
-        req.user = { uid: decoded.uid, email: decoded.email };
+      const resolvedUid = decoded?.uid || decoded?.user_id || decoded?.sub;
+      if (decoded && resolvedUid) {
+        req.user = { uid: resolvedUid, email: decoded.email };
         req.token = token;
       }
     }

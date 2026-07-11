@@ -51,6 +51,32 @@ export interface RoutineItem {
   completed: boolean;
 }
 
+// The persona file — Yadira's session-to-session memory.
+// Written to after every conversation, read before the next one.
+// This is the continuity architecture: Beth remembers so the patient doesn't have to.
+export interface SessionMoment {
+  id: string;
+  date: string;
+  summary: string; // what the patient shared
+  emotionalTone: string; // how they seemed when they shared it
+}
+
+export interface PersonaFile {
+  lastSessionAt: string | null;
+  lastSummary: string; // 1-2 sentence recap of the most recent visit
+  recurringThreads: string[]; // what the patient keeps coming back to
+  moments: SessionMoment[]; // accumulated things the patient has shared
+  threadToPickUp: string; // a warm line the persona can open with next session
+}
+
+export const DEFAULT_PERSONA_FILE: PersonaFile = {
+  lastSessionAt: null,
+  lastSummary: '',
+  recurringThreads: [],
+  moments: [],
+  threadToPickUp: '',
+};
+
 export interface CaregiverProfile {
   patientName: string;
   patientStage: string;
@@ -76,7 +102,7 @@ export const DEFAULT_PROFILE: CaregiverProfile = {
   caregiverRelationship: 'Son',
   patientMode: 'lucid',
   representedPersona: 'Beth',
-  representedVoiceId: 'Sarah',
+  representedVoiceId: 'zippy-pecan-9151__design-voice-233c4887',
   driftTimeoutSeconds: 25,
   driftEnabled: true,
 };

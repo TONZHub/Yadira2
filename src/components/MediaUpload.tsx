@@ -15,6 +15,8 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_UPLOAD_DIMENSION = 1600;
+  const JPEG_QUALITY = 0.78;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,19 +51,36 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
       if (file.type.startsWith('video/')) {
         const video = document.createElement('video');
         video.onloadedmetadata = () => {
+          const largestSide = Math.max(video.videoWidth || 1, video.videoHeight || 1);
+          const scale = Math.min(1, MAX_UPLOAD_DIMENSION / largestSide);
           const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(video, 0, 0);
-            analyzeMedia(canvas.toDataURL('image/jpeg'));
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            analyzeMedia(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
           }
         };
         video.src = dataUrl;
       } else {
-        // Analyze image directly
-        analyzeMedia(dataUrl);
+        const image = new Image();
+        image.onload = () => {
+          const largestSide = Math.max(image.naturalWidth || 1, image.naturalHeight || 1);
+          const scale = Math.min(1, MAX_UPLOAD_DIMENSION / largestSide);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+          canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            analyzeMedia(dataUrl);
+            return;
+          }
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          analyzeMedia(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+        };
+        image.onerror = () => analyzeMedia(dataUrl);
+        image.src = dataUrl;
       }
     };
     reader.readAsDataURL(file);
@@ -82,7 +101,18 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
         body: JSON.stringify({ media: base64Data, mediaType: 'image' }),
       });
 
-      if (!response.ok) throw new Error(`Analysis failed: ${response.statusText}`);
+      if (!response.ok) {
+        let serverError = `Analysis failed (${response.status})`;
+        try {
+          const errBody = await response.json();
+          if (typeof errBody?.error === 'string' && errBody.error.length > 0) {
+            serverError = errBody.error;
+          }
+        } catch {
+          // Ignore non-JSON error bodies.
+        }
+        throw new Error(serverError);
+      }
 
       const insight = await response.json();
       onMediaAnalyzed(insight);

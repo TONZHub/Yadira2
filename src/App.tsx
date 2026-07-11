@@ -27,8 +27,8 @@ import {
   LogOut
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem } from './types';
-import { DEFAULT_PROFILE } from './types';
+import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
+import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -127,9 +127,21 @@ const DEFAULT_ROUTINE: RoutineItem[] = [
 ];
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, sessionRole } = useAuth();
+  const isPatientSession = sessionRole === 'patient';
   const { error: toastError, success: toastSuccess } = useToast();
   const [demoSeeded, setDemoSeeded] = useState(false);
+
+  // Auth headers for API requests that must fail *silently* (drift, reflection)
+  // — apiCall below raises a toast on failure, which is wrong for background
+  // calls the patient should never notice.
+  const authHeaders = (): HeadersInit => {
+    const token = localStorage.getItem('yadira_token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+  };
 
   // Helper to add auth token to API requests
   const apiCall = async (url: string, options: RequestInit = {}) => {
@@ -150,23 +162,14 @@ function AppContent() {
     }
   };
 
-  // Seed demo data on first login
-  useEffect(() => {
-    if (user && !demoSeeded) {
-      const isFirstLogin = localStorage.getItem('yadira_seeded_demo') !== 'true';
-      if (isFirstLogin) {
-        setMemories(DEMO_MEMORIES);
-        setFaqs(DEMO_FAQS);
-        setLogs(DEMO_LOGS);
-        setRoutine(DEMO_ROUTINE);
-        localStorage.setItem('yadira_seeded_demo', 'true');
-        setDemoSeeded(true);
-        toastSuccess('Welcome, Thomas!', 'Eleanor\'s profile is loaded and ready');
-      }
-    }
-  }, [user, demoSeeded]);
   // Navigation: 'patient' or 'caregiver'
-  const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>('patient');
+  const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
+  const isCaregiverPreview = !isPatientSession && activeTab === 'patient';
+  useEffect(() => {
+    if (isPatientSession && activeTab !== 'patient') {
+      setActiveTab('patient');
+    }
+  }, [isPatientSession, activeTab]);
 
   // Caregiver Config State — now persisted (was lost on refresh before)
   const [profile, setProfile] = useStoreDoc('profile', DEFAULT_PROFILE);
@@ -184,6 +187,8 @@ function AppContent() {
     driftTimeoutSeconds,
     driftEnabled
   } = profile;
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
   
   const setPatientName = (v: string) => setProfile({ ...profile, patientName: v });
   const setPatientStage = (v: string) => setProfile({ ...profile, patientStage: v });
@@ -192,7 +197,19 @@ function AppContent() {
   const setPatientSleepTime = (v: string) => setProfile({ ...profile, patientSleepTime: v });
   const setCaregiverName = (v: string) => setProfile({ ...profile, caregiverName: v });
   const setCaregiverRelationship = (v: string) => setProfile({ ...profile, caregiverRelationship: v });
-  const setPatientMode = (v: 'lucid' | 'vivid') => setProfile({ ...profile, patientMode: v });
+  const setPatientMode = (v: 'lucid' | 'vivid') => {
+    setProfile({ ...profileRef.current, patientMode: v });
+    // Same-browser fast path: fires the native `storage` event in any other
+    // tab of this browser sharing localStorage.
+    localStorage.setItem('yadira_shared_mode', JSON.stringify({ mode: v, at: Date.now() }));
+    // Cross-context path: also push to the backend so two genuinely separate
+    // browser tabs/devices (which don't share localStorage) stay in sync too.
+    fetch('/api/shared-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: v }),
+    }).catch((err) => console.warn('[Yadira] shared-mode push failed', err));
+  };
   const setRepresentedPersona = (v: string) => setProfile({ ...profile, representedPersona: v });
   const setRepresentedVoiceId = (v: string) => setProfile({ ...profile, representedVoiceId: v });
   const setDriftTimeoutSeconds = (v: number) => setProfile({ ...profile, driftTimeoutSeconds: v });
@@ -203,6 +220,88 @@ function AppContent() {
   const [faqs, setFaqs] = useStoreList<CustomFAQ>('faqs', INITIAL_FAQS);
   const [logs, setLogs] = useStoreList<DailyLog>('logs', INITIAL_LOGS, 'date');
   const [routine, setRoutine] = useStoreList<RoutineItem>('routine', DEFAULT_ROUTINE);
+
+  // The persona file — session-to-session memory. Written to after every
+  // conversation (see runReflection), read into every chat prompt. This is
+  // what separates Yadira from tools that forget the people who forget.
+  const [personaFile, setPersonaFile] = useStoreDoc<PersonaFile>('personaFile', DEFAULT_PERSONA_FILE);
+  const personaFileRef = useRef(personaFile);
+  personaFileRef.current = personaFile;
+
+  // Seed demo data on first login
+  useEffect(() => {
+    if (user && !demoSeeded) {
+      const isFirstLogin = localStorage.getItem('yadira_seeded_demo') !== 'true';
+      if (isFirstLogin) {
+        setMemories(DEMO_MEMORIES);
+        setFaqs(DEMO_FAQS);
+        setLogs(DEMO_LOGS);
+        setRoutine(DEMO_ROUTINE);
+        localStorage.setItem('yadira_seeded_demo', 'true');
+        setDemoSeeded(true);
+        if (sessionRole === 'patient') {
+          toastSuccess('Welcome back', `${patientName || 'Eleanor'}, you are safe and supported.`);
+        } else {
+          toastSuccess('Welcome, Thomas!', `${patientName || 'Eleanor'}'s profile is loaded and ready`);
+        }
+      }
+    }
+  }, [user, demoSeeded, sessionRole, patientName]);
+
+  useEffect(() => {
+    const applySharedMode = (nextMode: unknown) => {
+      if ((nextMode === 'lucid' || nextMode === 'vivid') && profileRef.current.patientMode !== nextMode) {
+        setProfile({ ...profileRef.current, patientMode: nextMode });
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== 'yadira_shared_mode' || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue) as { mode?: 'lucid' | 'vivid' };
+        applySharedMode(parsed.mode);
+      } catch {
+        // Ignore malformed sync payloads.
+      }
+    };
+
+    const existingLocal = localStorage.getItem('yadira_shared_mode');
+    if (existingLocal) {
+      try {
+        const parsed = JSON.parse(existingLocal) as { mode?: 'lucid' | 'vivid' };
+        applySharedMode(parsed.mode);
+      } catch {
+        // Ignore malformed local payloads.
+      }
+    }
+
+    window.addEventListener('storage', onStorage);
+
+    // Poll the backend too. The `storage` event only reaches other tabs of
+    // the SAME browser — it never fires for genuinely separate browser
+    // windows/devices. Polling the shared server state is what makes the
+    // caregiver tab and patient tab agree even when they aren't sharing
+    // localStorage.
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/shared-mode');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) applySharedMode(data?.mode);
+      } catch {
+        // Best-effort — ignore transient network errors during polling.
+      }
+    };
+    poll();
+    const intervalId = window.setInterval(poll, 1500);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // New Memory Modal State
   const [newMemTitle, setNewMemTitle] = useState('');
@@ -232,35 +331,46 @@ function AppContent() {
     actionableTips: string[];
   } | null>(null);
 
-  // Patient Chat State
-  const [chatMessages, setChatMessages] = useState<Message[]>(() => {
+  // Patient Chat State — persisted like every other store, so a page refresh
+  // or connection drop never erases the conversation. (The Elsy killswitch
+  // test: ask her if she remembers. She does.)
+  const buildGreeting = (): Message => {
     const isVividMode = profile?.patientMode === 'vivid';
     const persona = profile?.representedPersona || 'Beth';
+    const thread = personaFile?.threadToPickUp || '';
     const greetingText = isVividMode
-      ? `Hello, love. It's me, ${persona}. I'm right here with you.`
+      ? thread
+        ? `Hello, love. It's me, ${persona}. ${thread}`
+        : `Hello, love. It's me, ${persona}. I'm right here with you.`
       : `Hello, ${profile?.patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
-    return [
-      {
-        id: 'greet',
-        role: 'model',
-        text: greetingText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ];
-  });
+    return {
+      id: 'greet',
+      role: 'model',
+      text: greetingText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+  const [chatMessages, setChatMessages] = useStoreList<Message>('chat', [buildGreeting()]);
+  const chatMessagesRef = useRef(chatMessages);
+  chatMessagesRef.current = chatMessages;
+  // Append helper — caps the stored transcript so localStorage/Firestore stay lean.
+  const appendChatMessage = (msg: Message) => {
+    setChatMessages(prev => [...prev, msg].slice(-60));
+  };
   const [userInput, setUserInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   // Tracks whether Beth's voice is actually playing (Inworld audio or the
   // browser SpeechSynthesis fallback) so the drift timer can wait for her
   // to finish talking instead of starting the moment text generation ends.
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(isPatientSession);
   const [soundFeedback, setSoundFeedback] = useState(true);
 
   // Ref for chat auto-scrolling
   const chatEndRef = useRef<HTMLDivElement>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioUnlockedRef = useRef(false);
+  const startupGreetingSpokenRef = useRef(false);
   // Track the last user message ID that triggered a drift reach, to prevent
   // the drift from looping by re-triggering on its own model messages.
   const lastDriftedAfterMsgRef = useRef<string | null>(null);
@@ -303,18 +413,21 @@ function AppContent() {
     if (prevModeRef.current !== patientMode) {
       prevModeRef.current = patientMode;
       if (patientMode === 'vivid') {
-        const text = `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
+        const thread = personaFileRef.current?.threadToPickUp || '';
+        const text = thread
+          ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
+          : `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        speakText(text);
+        if (activeTab === 'patient') speakText(text);
         if (soundFeedback) playSoundCue('chime');
       } else {
         const text = `Hello, ${patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        speakText(text);
+        if (activeTab === 'patient') speakText(text);
         if (soundFeedback) playSoundCue('pop');
       }
     }
-  }, [patientMode, representedPersona, patientName, soundFeedback]);
+  }, [patientMode, representedPersona, patientName, soundFeedback, activeTab]);
 
   // Proactive Drift Detection (Inactivity Timer calling /api/drift/proactive)
   // We derive the last user message ID so the effect only re-runs when the
@@ -337,13 +450,16 @@ function AppContent() {
       lastDriftedAfterMsgRef.current = lastUserMsgId;
 
       try {
+        // Auth middleware protects /api/drift — without the Bearer header this
+        // call 401s and the proactive reach silently never happens.
         const response = await fetch('/api/drift/proactive', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders(),
           body: JSON.stringify({
             patientName,
             representedPersona,
-            memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra }))
+            memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
+            personaFile: personaFileRef.current
           })
         });
 
@@ -357,7 +473,7 @@ function AppContent() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
-        setChatMessages(prev => [...prev, driftReply]);
+        appendChatMessage(driftReply);
         speakText(data.reply);
         if (soundFeedback) playSoundCue('chime');
       } catch (err) {
@@ -372,9 +488,117 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, [lastUserMsgId, userInput, driftEnabled, driftTimeoutSeconds, activeTab, isTyping, isSpeaking, patientName, representedPersona, memories]);
 
+  // ---- Session reflection: writing the persona file ----
+  // Every few patient turns (and whenever the tab is hidden), the transcript
+  // is distilled server-side into what they shared, how they seemed, and what
+  // they keep coming back to. The result is persisted and read back into every
+  // chat prompt — Beth remembers so the patient doesn't have to.
+  const reflectingRef = useRef(false);
+  const lastReflectedCountRef = useRef<number | null>(null);
+  const userMsgCount = chatMessages.filter(m => m.role === 'user').length;
+  if (lastReflectedCountRef.current === null) {
+    // Messages restored from a previous session were already reflected.
+    lastReflectedCountRef.current = userMsgCount;
+  }
+
+  const runReflection = async (options: { keepalive?: boolean } = {}): Promise<PersonaFile | null> => {
+    const currentCount = chatMessagesRef.current.filter(m => m.role === 'user').length;
+    if (reflectingRef.current) return null;
+    if (currentCount - (lastReflectedCountRef.current ?? 0) < 1) return null;
+    reflectingRef.current = true;
+    try {
+      const response = await fetch('/api/session/reflect', {
+        method: 'POST',
+        keepalive: options.keepalive,
+        headers: authHeaders(),
+        body: JSON.stringify({
+          transcript: chatMessagesRef.current.slice(-20).map(m => ({ role: m.role, text: m.text })),
+          patientName: profileRef.current.patientName,
+          representedPersona: profileRef.current.representedPersona,
+          personaFile: personaFileRef.current
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || data.error || !data.reflection) return null;
+
+      lastReflectedCountRef.current = currentCount;
+      const r = data.reflection;
+      const prev = personaFileRef.current;
+      const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const newMoments: SessionMoment[] = (Array.isArray(r.newMoments) ? r.newMoments : [])
+        .filter((m: any) => m && m.summary)
+        .map((m: any, i: number) => ({
+          id: `moment-${Date.now()}-${i}`,
+          date: dateStr,
+          summary: m.summary,
+          emotionalTone: m.emotionalTone || 'calm'
+        }));
+      const merged: PersonaFile = {
+        lastSessionAt: new Date().toISOString(),
+        lastSummary: r.sessionSummary || prev.lastSummary,
+        recurringThreads: (Array.isArray(r.recurringThreads) && r.recurringThreads.length > 0
+          ? r.recurringThreads
+          : prev.recurringThreads).slice(0, 6),
+        moments: [...newMoments, ...prev.moments].slice(0, 30),
+        threadToPickUp: r.threadToPickUp || prev.threadToPickUp
+      };
+      setPersonaFile(merged);
+      return merged;
+    } catch (err) {
+      console.warn('[Yadira] Session reflection failed (will retry later):', err);
+      return null;
+    } finally {
+      reflectingRef.current = false;
+    }
+  };
+
+  // Reflect every 3 patient messages while the conversation is quiet…
+  useEffect(() => {
+    if (isTyping) return;
+    if (userMsgCount - (lastReflectedCountRef.current ?? 0) >= 3) {
+      runReflection();
+    }
+  }, [userMsgCount, isTyping]);
+
+  // …and when the tab is hidden or closed, so nothing shared is ever lost.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        runReflection({ keepalive: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  // "Start Fresh Session" — the killswitch demo. Reflect whatever is pending,
+  // clear the conversation, and let the greeting pick the thread back up.
+  // The chat resets; the memory doesn't.
+  const handleStartFreshSession = async () => {
+    const merged = await runReflection();
+    const pf = merged || personaFileRef.current;
+    const p = profileRef.current;
+    const persona = p.representedPersona || 'Beth';
+    const greetingText = p.patientMode === 'vivid'
+      ? pf.threadToPickUp
+        ? `Hello, love. It's me, ${persona}. ${pf.threadToPickUp}`
+        : `Hello, love. It's me, ${persona}. I'm right here with you.`
+      : pf.threadToPickUp
+        ? `Hello, ${p.patientName || 'dear'}! I am Yadira, right here with you as always. ${pf.threadToPickUp}`
+        : `Hello, ${p.patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
+    setChatMessages([{
+      id: 'greet',
+      role: 'model',
+      text: greetingText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+    lastReflectedCountRef.current = 0;
+    toastSuccess('New session started', `${persona} kept everything from the last visit.`);
+  };
+
   // Text To Speech helper
   const speakText = (text: string) => {
-    if (!voiceEnabled) return;
+    if (!voiceEnabled || activeTab !== 'patient') return;
 
     // Stop any currently playing speech/audio
     if (activeAudioRef.current) {
@@ -394,42 +618,47 @@ function AppContent() {
 
     setIsSpeaking(true);
 
-    // First try Inworld proxy endpoint
-    try {
-      const selectedVoice = representedVoiceId || 'Sarah';
-      const audioUrl = `/api/tts?text=${encodeURIComponent(cleanedText)}&voiceId=${selectedVoice}`;
+    // First try Inworld proxy endpoint (authenticated fetch), then fall back to browser TTS.
+    void (async () => {
+      try {
+        const selectedVoice = representedVoiceId || 'Sarah';
+        const token = localStorage.getItem('yadira_token');
+        const headers: HeadersInit = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
 
-      const audio = new Audio(audioUrl);
-      activeAudioRef.current = audio;
-
-      let fallbackTriggered = false;
-      const triggerFallback = () => {
-        if (!fallbackTriggered) {
-          fallbackTriggered = true;
-          fallbackSpeechSynthesis(cleanedText);
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ text: cleanedText, voiceId: selectedVoice }),
+        });
+        if (!response.ok) {
+          const details = await response.text();
+          throw new Error(`TTS request failed (${response.status}): ${details || 'no details'}`);
         }
-      };
 
-      audio.addEventListener('ended', () => setIsSpeaking(false));
+        const audioBlob = await response.blob();
+        const objectUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(objectUrl);
+        activeAudioRef.current = audio;
 
-      audio.play().catch(err => {
-        console.warn('[TTS] Inworld audio playback failed or aborted:', err);
-        if (err.name !== 'AbortError') {
-          triggerFallback();
-        } else {
+        audio.addEventListener('ended', () => {
+          URL.revokeObjectURL(objectUrl);
           setIsSpeaking(false);
-        }
-      });
+        });
 
-      audio.addEventListener('error', (e) => {
-        console.warn('[TTS] Inworld backend proxy failed, falling back to browser SpeechSynthesis.');
-        triggerFallback();
-      });
+        audio.addEventListener('error', () => {
+          URL.revokeObjectURL(objectUrl);
+          fallbackSpeechSynthesis(cleanedText);
+        });
 
-    } catch (err) {
-      console.warn('[TTS] Inworld initialization error:', err);
-      fallbackSpeechSynthesis(cleanedText);
-    }
+        await audio.play();
+      } catch (err) {
+        console.warn('[TTS] Inworld backend proxy failed, falling back to browser SpeechSynthesis.', err);
+        fallbackSpeechSynthesis(cleanedText);
+      }
+    })();
   };
 
   const fallbackSpeechSynthesis = (text: string) => {
@@ -494,10 +723,14 @@ function AppContent() {
 
   // Speak initial greeting when voice is enabled
   useEffect(() => {
-    if (chatMessages.length === 1 && voiceEnabled) {
+    const storageKey = 'yadira_startup_greeting_spoken';
+    const alreadySpokenThisLoad = typeof window !== 'undefined' && sessionStorage.getItem(storageKey) === 'true';
+    if (activeTab === 'patient' && chatMessages.length === 1 && voiceEnabled && !startupGreetingSpokenRef.current && !alreadySpokenThisLoad) {
+      startupGreetingSpokenRef.current = true;
+      sessionStorage.setItem(storageKey, 'true');
       speakText(chatMessages[0].text);
     }
-  }, [voiceEnabled]);
+  }, [voiceEnabled, activeTab]);
 
   // Handle Patient message submission
   const handleSendMessage = async (textToSend: string, emotion?: { emotion: string; confidence: number; tone: string }, mediaInsight?: { description: string; emotion: string; suggestions: string[] }) => {
@@ -513,7 +746,7 @@ function AppContent() {
       mediaInsight
     };
 
-    setChatMessages(prev => [...prev, userMsg]);
+    appendChatMessage(userMsg);
     setUserInput('');
     setIsTyping(true);
 
@@ -553,7 +786,8 @@ function AppContent() {
           caregiverSettings,
           patientMode,
           representedPersona,
-          memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra }))
+          memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
+          personaFile: personaFileRef.current
         })
       });
 
@@ -570,7 +804,7 @@ function AppContent() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setChatMessages(prev => [...prev, yadiraReply]);
+      appendChatMessage(yadiraReply);
       speakText(data.reply);
     } catch (err: any) {
       console.error('Chat error:', err);
@@ -585,7 +819,7 @@ function AppContent() {
         text: fallbackText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      setChatMessages(prev => [...prev, errorReply]);
+      appendChatMessage(errorReply);
       speakText(errorReply.text);
     } finally {
       setIsTyping(false);
@@ -682,7 +916,8 @@ function AppContent() {
   const handleSendRedirection = async (nurseNote: string) => {
     if (!nurseNote.trim()) return;
     try {
-      const response = await fetch('/api/redirection/generate', {
+      // apiCall attaches the Bearer token — /api routes are auth-protected.
+      const response = await apiCall('/api/redirection/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -703,7 +938,7 @@ function AppContent() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setChatMessages(prev => [...prev, redirectMsg]);
+      appendChatMessage(redirectMsg);
       speakText(data.reply);
       if (soundFeedback) playSoundCue('chime');
       alert(`Redirection cue successfully dispatched to Patient View: "${data.reply}"`);
@@ -717,7 +952,7 @@ function AppContent() {
   const handleGenerateAiRoutine = async () => {
     setLoadingRoutine(true);
     try {
-      const response = await fetch('/api/routine/generate', {
+      const response = await apiCall('/api/routine/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -759,7 +994,7 @@ function AppContent() {
   const handleGenerateInsights = async () => {
     setLoadingInsights(true);
     try {
-      const response = await fetch('/api/insights/summarize', {
+      const response = await apiCall('/api/insights/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -802,10 +1037,30 @@ function AppContent() {
       activeTab === 'patient' && patientMode === 'vivid'
         ? 'bg-[#FCF5F5]'
         : 'bg-[#F4F1EA]'
-    }`}>
+    } relative overflow-hidden`}>
+      <div className="pointer-events-none absolute inset-0">
+        <motion.div
+          className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
+          style={{ background: 'radial-gradient(circle, #b7e4c7 0%, #74c69d 45%, transparent 72%)' }}
+          animate={{ x: [0, 28, -16, 0], y: [0, 18, -10, 0], scale: [1, 1.08, 0.96, 1] }}
+          transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute top-1/3 -right-28 w-[28rem] h-[28rem] rounded-full blur-3xl opacity-25"
+          style={{ background: 'radial-gradient(circle, #ffd6e0 0%, #ff8fab 48%, transparent 74%)' }}
+          animate={{ x: [0, -22, 14, 0], y: [0, -16, 12, 0], scale: [1, 0.95, 1.07, 1] }}
+          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute -bottom-28 left-1/4 w-[30rem] h-[30rem] rounded-full blur-3xl opacity-20"
+          style={{ background: 'radial-gradient(circle, #dbeafe 0%, #93c5fd 45%, transparent 72%)' }}
+          animate={{ x: [0, 20, -18, 0], y: [0, -14, 10, 0], scale: [1, 1.05, 0.94, 1] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
       
       {/* Dynamic Header */}
-      <header className="bg-white border-b border-[#E3DFC2] sticky top-0 z-40 px-4 md:px-8 py-3 flex items-center justify-between shadow-xs">
+      <header className="relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex items-center justify-between shadow-xs">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
             <Brain className="w-6 h-6" id="app-logo-icon" />
@@ -819,36 +1074,38 @@ function AppContent() {
         </div>
 
         {/* Global Tab Switcher */}
-        <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
-          <button
-            id="tab-patient"
-            onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-              activeTab === 'patient'
-                ? 'bg-white text-[#3A5D45] shadow-xs font-bold scale-[1.02]'
-                : 'text-[#5E5D57] hover:text-[#3A5D45]'
-            }`}
-          >
-            <Heart className="w-4 h-4 text-rose-500" />
-            <span>Patient View</span>
-          </button>
-          <button
-            id="tab-caregiver"
-            onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-              activeTab === 'caregiver'
-                ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
-                : 'text-[#5E5D57] hover:text-[#3A5D45]'
-            }`}
-          >
-            <Sliders className="w-4 h-4" />
-            <span>Caregiver Hub</span>
-          </button>
-        </div>
+        {!isPatientSession && (
+          <div className="flex space-x-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2]">
+            <button
+              id="tab-patient"
+              onClick={() => { setActiveTab('patient'); playSoundCue('pop'); }}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                activeTab === 'patient'
+                  ? 'bg-white text-[#3A5D45] shadow-xs scale-[1.02]'
+                  : 'text-[#7E7D76] hover:text-[#3A5D45]'
+              }`}
+            >
+              <Heart className="w-4 h-4 text-rose-500" />
+              <span>Preview Patient View</span>
+            </button>
+            <button
+              id="tab-caregiver"
+              onClick={() => { setActiveTab('caregiver'); playSoundCue('pop'); }}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                activeTab === 'caregiver'
+                  ? 'bg-[#3A5D45] text-white shadow-xs font-bold scale-[1.02]'
+                  : 'text-[#5E5D57] hover:text-[#3A5D45]'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+              <span>Caregiver Hub</span>
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Main Content Stage */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 flex flex-col">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 flex flex-col">
         <AnimatePresence mode="wait">
           {activeTab === 'patient' ? (
             
@@ -888,9 +1145,16 @@ function AppContent() {
                       </div>
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-[#2C2C2A] leading-tight">
-                        {patientMode === 'vivid' ? representedPersona : 'Yadira'}
-                      </h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-[#2C2C2A] leading-tight">
+                          {patientMode === 'vivid' ? representedPersona : 'Yadira'}
+                        </h2>
+                        {isCaregiverPreview && (
+                          <span className="inline-flex items-center rounded-full border border-[#E3DFC2] bg-[#F7F3EA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7E7D76]">
+                            Preview
+                          </span>
+                        )}
+                      </div>
                       <p className={`text-xs font-semibold flex items-center transition-all duration-500 ${
                         patientMode === 'vivid' ? 'text-rose-500' : 'text-[#5C8D71]'
                       }`}>
@@ -1948,6 +2212,119 @@ function AppContent() {
                 </div>
               </div>
 
+              {/* Persona File — session-to-session memory (the continuity architecture) */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">
+                      Persona File — What {representedPersona || 'Beth'} Remembers
+                    </h3>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleStartFreshSession}
+                      className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#3A5D45] hover:bg-[#2B4633] text-white rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95"
+                      title="End the current conversation and start a new session — the persona file carries over"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Start Fresh Session</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Clear everything ${representedPersona || 'Beth'} remembers between sessions? This cannot be undone.`)) {
+                          setPersonaFile(DEFAULT_PERSONA_FILE);
+                        }
+                      }}
+                      className="p-2 bg-[#FCFAF5] border border-[#E3DFC2] text-[#A6A27B] hover:text-red-500 rounded-xl transition-all"
+                      title="Clear persona file"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                  Written automatically after every conversation and read before the next one. A disconnection is a pause, not a forgetting —
+                  ask {representedPersona || 'Beth'} if she remembers. She does.
+                </p>
+
+                {personaFile.moments.length === 0 && !personaFile.lastSummary ? (
+                  <div className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl">
+                    <MessageSquare className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
+                    <p className="text-base font-bold text-[#5E5D57]">Nothing remembered yet</p>
+                    <p className="text-xs text-[#8A8981] mt-1 max-w-sm mx-auto">
+                      The persona file grows as {patientName || 'the patient'} talks with {representedPersona || 'Beth'}. After a few messages, what they share appears here — and {representedPersona || 'Beth'} carries it into every future session.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="lg:col-span-5 space-y-4">
+                      {personaFile.lastSummary && (
+                        <div className="p-4 bg-[#F5FAF6] border border-[#CEDFCF] rounded-2xl">
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#3A5D45]">Last Visit</h4>
+                          <p className="text-sm text-[#2C2C2A] leading-relaxed mt-1.5 font-medium">{personaFile.lastSummary}</p>
+                          {personaFile.lastSessionAt && (
+                            <p className="text-[10px] text-[#8A8981] mt-2">
+                              Updated {new Date(personaFile.lastSessionAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {personaFile.recurringThreads.length > 0 && (
+                        <div>
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-2">
+                            They keep coming back to:
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {personaFile.recurringThreads.map((thread, i) => (
+                              <span key={i} className="px-3 py-1.5 bg-[#FCFAF5] border border-[#E3DFC2] rounded-full text-xs font-bold text-[#3A5D45]">
+                                {thread}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {personaFile.threadToPickUp && (
+                        <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-600">
+                            {representedPersona || 'Beth'} will open the next session with:
+                          </h4>
+                          <p className="text-sm text-rose-900 italic leading-relaxed mt-1.5">
+                            "{personaFile.threadToPickUp}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="lg:col-span-7">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-2">
+                        Moments they shared ({personaFile.moments.length}):
+                      </h4>
+                      <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                        {personaFile.moments.map((moment) => (
+                          <div key={moment.id} className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl flex items-start justify-between space-x-3">
+                            <p className="text-sm text-[#2C2C2A] leading-relaxed flex-1">{moment.summary}</p>
+                            <div className="flex flex-col items-end shrink-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white border border-[#D5D2B3] text-[#5C8D71]">
+                                {moment.emotionalTone}
+                              </span>
+                              <span className="text-[10px] text-[#8A8981] mt-1">{moment.date}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Memory Bank Editor */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
                 <div className="flex items-center justify-between mb-5">
@@ -2085,7 +2462,7 @@ function AppContent() {
       </main>
 
       {/* Footer Branding */}
-      <footer className="bg-white border-t border-[#E3DFC2] py-6 px-4 text-center text-xs text-[#7E7D76] font-medium mt-12">
+      <footer className="relative z-10 bg-white/90 backdrop-blur-sm border-t border-[#E3DFC2] py-6 px-4 text-center text-xs text-[#7E7D76] font-medium mt-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           <div className="flex items-center space-x-2">
             <HeartHandshake className="w-4 h-4 text-[#3A5D45]" />

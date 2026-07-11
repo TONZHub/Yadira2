@@ -8,7 +8,9 @@ import { authMiddleware } from './auth';
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+const JSON_BODY_LIMIT = '20mb';
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 
 // Apply auth middleware to all /api routes
 app.use('/api/', authMiddleware);
@@ -40,6 +42,26 @@ const useEnterprisePlatform = !!gcpProject || !!enterpriseApiKey;
 // reasoning document rather than a script.
 const OPENROUTER_MODEL = 'poolside/laguna-xs-2.1:free';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
+let sharedPatientMode: 'lucid' | 'vivid' = 'lucid';
+
+// Shared mode sync for caregiver <-> patient surfaces during demos.
+// Registered once at module load (top-level route, NOT nested inside another
+// handler) so it exists immediately on server start — previously this was
+// accidentally declared inside the /api/tts handler body, which meant the
+// route only came into existence after the first TTS call, and was
+// re-registered (duplicated) on every subsequent call.
+app.get('/api/shared-mode', async (_req, res) => {
+  res.json({ mode: sharedPatientMode });
+});
+
+app.post('/api/shared-mode', async (req, res) => {
+  const mode = req.body?.mode;
+  if (mode !== 'lucid' && mode !== 'vivid') {
+    return res.status(400).json({ error: 'mode must be lucid or vivid' });
+  }
+  sharedPatientMode = mode;
+  res.json({ ok: true, mode: sharedPatientMode });
+});
 
 // Helper to check if Gemini access (Enterprise Platform or AI Studio) is configured at all
 const isGeminiKeyMissing = !useEnterprisePlatform && (!geminiApiKey || geminiApiKey === 'MY_GEMINI_API_KEY' || geminiApiKey.trim() === '');
@@ -382,6 +404,51 @@ function getSimulationDrift(name: string, persona: string, memories: any[]): str
   return `I was just sitting here thinking about that beautiful memory we shared: ${anchorTitle}. I can almost see you there right now, dear.`;
 }
 
+// Helper to generate a simulated session reflection (no API key needed).
+// Pulls the patient's own words out of the transcript so the persona file
+// still grows meaningfully in demo/offline mode.
+function getSimulationReflection(transcript: any[], personaName: string) {
+  const userTurns = (Array.isArray(transcript) ? transcript : [])
+    .filter((t: any) => t && t.role === 'user' && typeof t.text === 'string')
+    .map((t: any) => t.text.trim())
+    .filter((text: string) => text.length > 12);
+
+  const recent = userTurns.slice(-3);
+  const toneWords: [RegExp, string][] = [
+    [/miss|gone|lost|lonely|sad/i, 'wistful'],
+    [/scared|worried|anxious|afraid|nervous/i, 'anxious'],
+    [/love|happy|wonderful|beautiful|laugh/i, 'happy'],
+    [/tired|hurt|pain|ache/i, 'weary'],
+  ];
+  const toneOf = (text: string) => {
+    for (const [pattern, tone] of toneWords) {
+      if (pattern.test(text)) return tone;
+    }
+    return 'calm';
+  };
+
+  const newMoments = recent.map((text: string) => ({
+    summary: `They shared: "${text.length > 140 ? text.slice(0, 140) + '…' : text}"`,
+    emotionalTone: toneOf(text),
+  }));
+
+  const lastSubstantial = recent[recent.length - 1];
+  const snippet = lastSubstantial
+    ? (lastSubstantial.length > 60 ? lastSubstantial.slice(0, 60) + '…' : lastSubstantial)
+    : '';
+
+  return {
+    sessionSummary: newMoments.length > 0
+      ? `A gentle visit. They opened up about ${newMoments.length} thing${newMoments.length > 1 ? 's' : ''} and seemed ${toneOf(recent.join(' '))} overall.`
+      : 'A quiet, peaceful visit without much conversation.',
+    newMoments,
+    recurringThreads: [],
+    threadToPickUp: snippet
+      ? `I was just thinking about what you said — "${snippet}". I'd love to hear more, whenever you're ready.`
+      : '',
+  };
+}
+
 // Helper to generate simulated nurse redirection translation
 function getSimulationRedirection(nurseNote: string, name: string, persona: string): string {
   const noteLower = nurseNote ? nurseNote.toLowerCase() : '';
@@ -396,9 +463,34 @@ function getSimulationRedirection(nurseNote: string, name: string, persona: stri
   }
 }
 
+// Formats the persona file (Yadira's session-to-session memory) as a prompt
+// section. The rules matter as much as the data: the memories must surface as
+// things the persona simply *knows* — never as a quiz or a "you told me" that
+// tests the patient's own memory.
+function formatPersonaFileContext(personaFile: any, personaName: string): string {
+  if (!personaFile) return '';
+  const moments = Array.isArray(personaFile.moments) ? personaFile.moments : [];
+  const threads = Array.isArray(personaFile.recurringThreads) ? personaFile.recurringThreads : [];
+  if (moments.length === 0 && threads.length === 0 && !personaFile.lastSummary) return '';
+
+  let section = `\nSESSION MEMORY — things ${personaName} remembers from previous conversations with the patient. Weave these in naturally as things you simply already know. NEVER quiz the patient about them or ask "do you remember". NEVER say "you told me last time" — you were there, you know, that is all:\n`;
+  if (personaFile.lastSummary) {
+    section += `- Last visit: ${personaFile.lastSummary}\n`;
+  }
+  threads.slice(0, 8).forEach((t: string) => {
+    section += `- They often come back to: ${t}\n`;
+  });
+  moments.slice(0, 12).forEach((m: any) => {
+    if (m && m.summary) {
+      section += `- ${m.date ? m.date + ': ' : ''}${m.summary}${m.emotionalTone ? ` (they seemed ${m.emotionalTone})` : ''}\n`;
+    }
+  });
+  return section;
+}
+
 // Endpoint for chatting with Yadira
 app.post('/api/chat', async (req, res) => {
-  const { message, history, caregiverSettings, memories, patientMode, representedPersona } = req.body;
+  const { message, history, caregiverSettings, memories, patientMode, representedPersona, personaFile } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -446,6 +538,8 @@ app.post('/api/chat', async (req, res) => {
         }
       });
     }
+
+    contextAugmentation += formatPersonaFileContext(personaFile, isVivid ? personaName : 'Yadira');
 
     // Choose system instruction based on Lucid vs Vivid mode
     let activeSystemInstruction = SYSTEM_INSTRUCTION;
@@ -638,7 +732,7 @@ Structure your advice in JSON format with the following keys:
 
 // Endpoint for proactive drift reach
 app.post('/api/drift/proactive', async (req, res) => {
-  const { patientName, representedPersona, memories } = req.body || {};
+  const { patientName, representedPersona, memories, personaFile } = req.body || {};
   const persona = representedPersona || 'Beth';
   const name = patientName || 'dear';
   try {
@@ -649,9 +743,25 @@ app.post('/api/drift/proactive', async (req, res) => {
       return res.json({ reply });
     }
 
-    const memoriesList = memories && Array.isArray(memories) && memories.length > 0
-      ? memories.map((m: any) => `- Memory: "${m.title}" - Description: "${m.description}"`).join('\n')
-      : 'No specific memories recorded.';
+    const anchorLines: string[] = [];
+    if (memories && Array.isArray(memories)) {
+      memories.forEach((m: any) => {
+        if (m.title) anchorLines.push(`- Memory: "${m.title}" - Description: "${m.description || ''}"`);
+      });
+    }
+    // Session memory anchors — things the patient shared recently are often the
+    // warmest thread to pull them back with.
+    if (personaFile && Array.isArray(personaFile.moments)) {
+      personaFile.moments.slice(0, 5).forEach((m: any) => {
+        if (m && m.summary) anchorLines.push(`- Something they shared with you recently: "${m.summary}"`);
+      });
+    }
+    if (personaFile && Array.isArray(personaFile.recurringThreads)) {
+      personaFile.recurringThreads.slice(0, 4).forEach((t: string) => {
+        anchorLines.push(`- Something they often come back to: "${t}"`);
+      });
+    }
+    const memoriesList = anchorLines.length > 0 ? anchorLines.join('\n') : 'No specific memories recorded.';
 
     const prompt = `You are ${persona}, the loved one of a dementia patient named ${name}. 
 They have gone silent for a moment. You want to gently fill the silence with a comforting thought to keep them engaged, warm, and secure.
@@ -677,6 +787,88 @@ CRITICAL CLINICAL RULES:
     console.warn('[Yadira Backend] OpenRouter proactive drift failed (falling back to Simulation Mode):', err.message || err);
     const reply = getSimulationDrift(name, persona, memories);
     res.json({ reply, fallbackTriggered: true });
+  }
+});
+
+// Endpoint for session reflection — writes the persona file.
+// This is the continuity architecture: after (and during) each conversation the
+// transcript is distilled into what the patient shared, how they seemed, and
+// what they keep coming back to. The client persists the result and sends it
+// back with every /api/chat call, so the persona never starts from zero.
+// Extraction is a structured/clinical task, so it runs on Gemini (matching the
+// role split — the persona voice itself stays on OpenRouter).
+app.post('/api/session/reflect', async (req, res) => {
+  const { transcript, patientName, representedPersona, personaFile } = req.body || {};
+  const persona = representedPersona || 'Beth';
+  const name = patientName || 'the patient';
+
+  if (!transcript || !Array.isArray(transcript) || transcript.length === 0) {
+    return res.status(400).json({ error: 'Transcript is required' });
+  }
+
+  try {
+    if (isGeminiKeyMissing) {
+      console.log('[Yadira Backend] Generating mock session reflection');
+      return res.json({ reflection: getSimulationReflection(transcript, persona) });
+    }
+
+    const transcriptString = transcript
+      .slice(-20)
+      .map((t: any) => `${t.role === 'user' ? name : persona}: ${t.text}`)
+      .join('\n');
+
+    const existingThreads = Array.isArray(personaFile?.recurringThreads)
+      ? personaFile.recurringThreads.join('; ')
+      : '';
+    const existingMoments = Array.isArray(personaFile?.moments)
+      ? personaFile.moments.slice(0, 8).map((m: any) => m.summary).join('; ')
+      : '';
+
+    const prompt = `You are the memory-keeper for ${persona}, the AI companion of a dementia patient named ${name}.
+Below is the transcript of their most recent conversation. Distill it into persona-file entries so ${persona} remembers this visit next time.
+
+TRANSCRIPT:
+${transcriptString}
+
+ALREADY IN THE PERSONA FILE (do not repeat these as new moments):
+- Known recurring threads: ${existingThreads || 'none yet'}
+- Known moments: ${existingMoments || 'none yet'}
+
+Extract:
+1. "sessionSummary": 1-2 warm sentences on how the visit went and how ${name} seemed (for the caregiver's eyes).
+2. "newMoments": array of NEW things ${name} shared or reached for this visit (0-3 items). Each has "summary" (specific and particular — the detail matters: not "talked about family" but "spoke about the blue Ford and driving it to the coast") and "emotionalTone" (one word: wistful, proud, anxious, happy, calm, weary...).
+3. "recurringThreads": the updated full list (max 6) of topics ${name} keeps returning to across ALL visits — merge the known threads with anything reinforced or new this visit.
+4. "threadToPickUp": ONE warm sentence ${persona} could open the NEXT conversation with to pick up where this one left off (e.g. "You were telling me about the tomatoes, weren't you?"). Spoken words only, in ${persona}'s voice. Never phrased as a memory test.`;
+
+    const reflection = await geminiGenerateJson(
+      'You are a careful clinical memory-keeper for a dementia companion AI. Respond ONLY with valid JSON, no markdown or explanation.',
+      prompt,
+      {
+        type: Type.OBJECT,
+        properties: {
+          sessionSummary: { type: Type.STRING },
+          newMoments: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                summary: { type: Type.STRING },
+                emotionalTone: { type: Type.STRING }
+              },
+              required: ['summary', 'emotionalTone']
+            }
+          },
+          recurringThreads: { type: Type.ARRAY, items: { type: Type.STRING } },
+          threadToPickUp: { type: Type.STRING }
+        },
+        required: ['sessionSummary', 'newMoments', 'recurringThreads', 'threadToPickUp']
+      }
+    );
+
+    res.json({ reflection });
+  } catch (err: any) {
+    console.warn('[Yadira Backend] Gemini session reflection failed (falling back to Simulation Mode):', err.message || err);
+    res.json({ reflection: getSimulationReflection(transcript, persona), fallbackTriggered: true });
   }
 });
 
@@ -870,9 +1062,10 @@ Respond ONLY as valid JSON (no markdown):
 });
 
 // Endpoint for Inworld TTS proxying
-app.get('/api/tts', async (req, res) => {
+app.post('/api/tts', async (req, res) => {
   try {
-    const { text, voiceId } = req.query;
+    const text = (req.body?.text ?? req.query?.text) as string | undefined;
+    const voiceId = (req.body?.voiceId ?? req.query?.voiceId) as string | undefined;
 
     if (!text) {
       return res.status(400).json({ error: 'Text query parameter is required' });
@@ -882,28 +1075,52 @@ app.get('/api/tts', async (req, res) => {
       return res.status(404).json({ error: 'INWORLD_API_KEY is not configured in environment variables.' });
     }
 
-    const selectedVoiceId = (voiceId as string) || 'Sarah'; // Default voice
+    const rawVoiceId = ((voiceId as string) || 'Sarah').trim();
+    const presetVoiceMap: Record<string, string> = {
+      Sarah: 'inworld_en_us_sarah',
+      Ashley: 'inworld_en_us_ashley',
+      Dennis: 'inworld_en_us_dennis',
+    };
+    const selectedVoiceId = presetVoiceMap[rawVoiceId] || rawVoiceId;
+    console.info(`[Inworld TTS] voiceId raw="${rawVoiceId}" resolved="${selectedVoiceId}"`);
 
-    const response = await fetch('https://api.inworld.ai/tts/v1/voice', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${inworldApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text as string,
-        voice_id: selectedVoiceId,
-        model_id: 'inworld-tts-1.5-max',
-        audio_config: {
-          audio_encoding: 'MP3'
-        }
-      })
+    const requestBody = JSON.stringify({
+      text: text as string,
+      voice_id: selectedVoiceId,
+      model_id: 'inworld-tts-1.5-max',
+      audio_config: {
+        audio_encoding: 'MP3'
+      }
     });
+
+    const makeTtsRequest = async (authHeader: string) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        return await fetch('https://api.inworld.ai/tts/v1/voice', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
+          body: requestBody,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    };
+
+    // Inworld TTS currently expects Bearer auth. Keep a Basic fallback for older keys.
+    let response = await makeTtsRequest(`Bearer ${inworldApiKey}`);
+    if ((response.status === 401 || response.status === 403) && inworldApiKey.includes('=')) {
+      response = await makeTtsRequest(`Basic ${inworldApiKey}`);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
       console.error('[Inworld] API error response:', errText);
-      return res.status(response.status).send(errText);
+      return res.status(response.status).json({ error: 'Inworld TTS request failed', details: errText || null });
     }
 
     const data = await response.json();
@@ -918,6 +1135,19 @@ app.get('/api/tts', async (req, res) => {
     console.error('Error in /api/tts endpoint:', err);
     res.status(500).json({ error: err.message || 'Inworld synthesis failed' });
   }
+});
+
+// Body-parser errors (oversized media uploads) — registered once at module
+// level so it exists from server start. Previously this lived inside the
+// /api/tts handler body, which stacked a duplicate error middleware on every
+// TTS call and didn't exist until the first one.
+app.use((err: any, _req: any, res: any, next: any) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    return res.status(413).json({
+      error: 'Uploaded media is too large. Please try a smaller image.',
+    });
+  }
+  return next(err);
 });
 
 // Serve static assets in production
