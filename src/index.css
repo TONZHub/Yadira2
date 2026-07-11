@@ -39,15 +39,35 @@ svg {
 
 /* ≤ 1024 px – tablet tighten */
 @media (max-width: 1024px) {
+  .patient-view .patient-chat-panel {
+    max-height: calc(100dvh - 9rem);
+  }
+
   .patient-view .patient-message-log {
+    min-height: 12rem;
     padding: 1rem;
   }
 }
 
 /* ≤ 768 px – mobile layout */
 @media (max-width: 768px) {
+  .patient-view .patient-chat-panel {
+    max-height: calc(100dvh - 8rem);
+  }
+
   .patient-view .patient-header-actions {
     gap: 0.375rem;
+  }
+
+  .patient-view .patient-message-log {
+    min-height: 14rem;
+  }
+
+  .patient-view .patient-quick-prompts {
+    max-height: 8rem;
+    overflow-y: auto;
+    align-content: flex-start;
+    overscroll-behavior: contain;
   }
 }
 
