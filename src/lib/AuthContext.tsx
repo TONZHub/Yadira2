@@ -141,7 +141,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     if (!isFirebaseConfigured || !auth) {
-      throw new Error('Firebase not configured');
+      // No Firebase → local demo session, same as patient mode already does.
+      // The app's design principle is to work fully without Firebase.
+      console.warn('[Yadira Auth] Firebase not configured, using local demo auth mode.');
+      startLocalSession(email, setUser, setToken, setError);
+      sessionStorage.setItem('yadira_session_role', 'caregiver');
+      setSessionRole('caregiver');
+      return;
     }
     setLoading(true);
     setError(null);
@@ -169,7 +175,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signup = async (email: string, password: string) => {
     if (!isFirebaseConfigured || !auth) {
-      throw new Error('Firebase not configured');
+      console.warn('[Yadira Auth] Firebase not configured, using local demo auth mode.');
+      startLocalSession(email, setUser, setToken, setError);
+      sessionStorage.setItem('yadira_session_role', 'caregiver');
+      setSessionRole('caregiver');
+      return;
     }
     setLoading(true);
     setError(null);

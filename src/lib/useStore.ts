@@ -94,16 +94,26 @@ export function useStoreList<T extends Record<string, any>>(
 
       if (isFirebaseConfigured && db) {
         pendingWrite.current = true;
-        const batch = writeBatch(db);
-        next.forEach((item) => {
-          const id = String(item[idField]);
-          batch.set(doc(db!, 'careCircles', CIRCLE_ID, key, id), item);
-        });
-        batch
-          .commit()
-          .catch((err) =>
-            console.warn(`[Yadira] Firestore write failed for "${key}"`, err)
-          );
+        try {
+          const batch = writeBatch(db);
+          next.forEach((item) => {
+            const id = String(item[idField]);
+            // Firestore rejects `undefined` field values (batch.set throws
+            // SYNCHRONOUSLY, which would abort the caller mid-flow — e.g.
+            // optional Message fields like `emotion`). JSON round-trip strips
+            // them, matching what writeLocal already persists.
+            const clean = JSON.parse(JSON.stringify(item));
+            batch.set(doc(db!, 'careCircles', CIRCLE_ID, key, id), clean);
+          });
+          batch
+            .commit()
+            .catch((err) =>
+              console.warn(`[Yadira] Firestore write failed for "${key}"`, err)
+            );
+        } catch (err) {
+          // Cloud sync is best-effort — never let it break the UI flow.
+          console.warn(`[Yadira] Firestore write failed for "${key}"`, err);
+        }
       }
     },
     [key, idField]
@@ -152,10 +162,15 @@ export function useStoreDoc<T extends Record<string, any>>(
 
       if (isFirebaseConfigured && db) {
         pendingWrite.current = true;
-        setDoc(doc(db, 'careCircles', CIRCLE_ID, 'meta', key), next).catch(
-          (err) =>
-            console.warn(`[Yadira] Firestore write failed for "${key}"`, err)
-        );
+        try {
+          const clean = JSON.parse(JSON.stringify(next));
+          setDoc(doc(db, 'careCircles', CIRCLE_ID, 'meta', key), clean).catch(
+            (err) =>
+              console.warn(`[Yadira] Firestore write failed for "${key}"`, err)
+          );
+        } catch (err) {
+          console.warn(`[Yadira] Firestore write failed for "${key}"`, err);
+        }
       }
     },
     [key]
