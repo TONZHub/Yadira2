@@ -1037,8 +1037,8 @@ function AppContent() {
       activeTab === 'patient' && patientMode === 'vivid'
         ? 'bg-[#FCF5F5]'
         : 'bg-[#F4F1EA]'
-    } relative overflow-hidden`}>
-      <div className="pointer-events-none absolute inset-0">
+    } relative overflow-x-hidden`}>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
           className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
           style={{ background: 'radial-gradient(circle, #b7e4c7 0%, #74c69d 45%, transparent 72%)' }}
@@ -1060,7 +1060,7 @@ function AppContent() {
       </div>
       
       {/* Dynamic Header */}
-      <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 md:gap-4 shadow-xs">
+      <header className="app-header relative z-30 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 md:gap-4 shadow-xs">
         <div className="flex min-w-[150px] items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
             <Brain className="w-6 h-6" id="app-logo-icon" />
@@ -1142,7 +1142,7 @@ function AppContent() {
             >
               
               {/* Left Column: Yadira Core Conversation Window */}
-              <div className={`lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[550px] lg:min-h-[650px] transition-all duration-500 ${
+              <div className={`lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[400px] sm:min-h-[550px] lg:min-h-[650px] max-h-[80dvh] lg:max-h-none transition-all duration-500 ${
                 patientMode === 'vivid' ? 'border-rose-200 ring-2 ring-rose-500/5' : 'border-[#E3DFC2]'
               }`}>
                 
