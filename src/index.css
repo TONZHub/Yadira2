@@ -39,6 +39,7 @@ svg {
 
 /* ≤ 1024 px – tablet tighten */
 @media (max-width: 1024px) {
+  /* Reserve space for the sticky global header plus the surrounding page padding. */
   .patient-view .patient-chat-panel {
     max-height: calc(100dvh - 9rem);
   }
@@ -51,6 +52,7 @@ svg {
 
 /* ≤ 768 px – mobile layout */
 @media (max-width: 768px) {
+  /* Mobile header stacks taller, so keep the panel anchored inside the remaining viewport. */
   .patient-view .patient-chat-panel {
     max-height: calc(100dvh - 8rem);
   }

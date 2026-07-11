@@ -1142,7 +1142,7 @@ function AppContent() {
             >
               
               {/* Left Column: Yadira Core Conversation Window */}
-              <div className={`patient-chat-panel lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[400px] sm:min-h-[550px] lg:min-h-[650px] max-h-[calc(100dvh-8rem)] sm:max-h-[calc(100dvh-9rem)] lg:max-h-none transition-all duration-500 ${
+              <div className={`patient-chat-panel lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[400px] sm:min-h-[550px] lg:min-h-[650px] lg:max-h-none transition-all duration-500 ${
                 patientMode === 'vivid' ? 'border-rose-200 ring-2 ring-rose-500/5' : 'border-[#E3DFC2]'
               }`}>
                 
