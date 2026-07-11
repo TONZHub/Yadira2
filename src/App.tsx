@@ -32,6 +32,9 @@ import { DEFAULT_PROFILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
+import { ToastProvider, useToast } from './lib/ToastContext';
+import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
+import { ChatMessageSkeleton, MemorySkeleton, RoutineSkeleton, LogSkeleton } from './components/LoadingSkeletons';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -124,15 +127,44 @@ const DEFAULT_ROUTINE: RoutineItem[] = [
 ];
 
 function AppContent() {
+  const { user } = useAuth();
+  const { error: toastError, success: toastSuccess } = useToast();
+  const [demoSeeded, setDemoSeeded] = useState(false);
+
   // Helper to add auth token to API requests
   const apiCall = async (url: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem('yadira_token');
-    const headers = new Headers(options.headers || {});
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
+    try {
+      const token = localStorage.getItem('yadira_token');
+      const headers = new Headers(options.headers || {});
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      const response = await fetch(url, { ...options, headers });
+      if (!response.ok && response.status !== 200) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response;
+    } catch (err: any) {
+      toastError('Network Error', err.message || 'Failed to reach server');
+      throw err;
     }
-    return fetch(url, { ...options, headers });
   };
+
+  // Seed demo data on first login
+  useEffect(() => {
+    if (user && !demoSeeded) {
+      const isFirstLogin = localStorage.getItem('yadira_seeded_demo') !== 'true';
+      if (isFirstLogin) {
+        setMemories(DEMO_MEMORIES);
+        setFaqs(DEMO_FAQS);
+        setLogs(DEMO_LOGS);
+        setRoutine(DEMO_ROUTINE);
+        localStorage.setItem('yadira_seeded_demo', 'true');
+        setDemoSeeded(true);
+        toastSuccess('Welcome, Thomas!', 'Eleanor\'s profile is loaded and ready');
+      }
+    }
+  }, [user, demoSeeded]);
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>('patient');
 
@@ -2092,7 +2124,9 @@ function App() {
 export default function AppWithProvider() {
   return (
     <AuthProvider>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </AuthProvider>
   );
 }
