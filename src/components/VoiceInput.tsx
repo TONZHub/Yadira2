@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Mic, MicOff, Volume2, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useToast } from '../lib/ToastContext';
 
 interface VoiceInputProps {
   onTranscript: (text: string, emotion?: { emotion: string; confidence: number; tone: string }) => void;
@@ -8,6 +9,7 @@ interface VoiceInputProps {
 }
 
 export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled = false }) => {
+  const { error: toastError } = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
@@ -60,7 +62,9 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
     };
 
     recognition.onerror = (event: any) => {
-      setError(`Error: ${event.error}`);
+      const errorMsg = `Voice Error: ${event.error}`;
+      setError(errorMsg);
+      toastError('Microphone Issue', event.error === 'no-speech' ? 'No speech detected. Try again.' : errorMsg);
     };
 
     recognition.onend = () => {
@@ -102,7 +106,9 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
         updateWaveform();
       })
       .catch((err) => {
-        setError(`Microphone access denied: ${err.message}`);
+        const msg = `Microphone access denied: ${err.message}`;
+        setError(msg);
+        toastError('Microphone Permission', 'Please allow microphone access to use voice input');
       });
   };
 
@@ -140,7 +146,12 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
         onTranscript(transcript.trim(), emotion);
         setTranscript('');
       } catch (err) {
-        setError(`Emotion analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        const msg = `Emotion analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        setError(msg);
+        toastError('Emotion Analysis Failed', 'Could not analyze emotion. Sending message without emotion context.', {
+          label: 'Send Anyway',
+          onClick: () => onTranscript(transcript.trim()),
+        });
       } finally {
         setIsAnalyzing(false);
       }

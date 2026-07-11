@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, AlertTriangle, X, Loader } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useToast } from '../lib/ToastContext';
 
 interface MediaUploadProps {
   onMediaAnalyzed: (insight: { description: string; emotion: string; suggestions: string[] }) => void;
@@ -8,6 +9,7 @@ interface MediaUploadProps {
 }
 
 export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disabled = false }) => {
+  const { error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
@@ -20,13 +22,17 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      setError('File too large (max 10MB)');
+      const msg = 'File too large (max 10MB)';
+      setError(msg);
+      toastError('File Too Large', msg);
       return;
     }
 
     // Validate file type
     if (!['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm'].includes(file.type)) {
-      setError('Unsupported file type. Use JPEG, PNG, GIF, MP4, or WebM');
+      const msg = 'Unsupported file type. Use JPEG, PNG, GIF, MP4, or WebM';
+      setError(msg);
+      toastError('Invalid File Type', msg);
       return;
     }
 
@@ -82,7 +88,12 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
       onMediaAnalyzed(insight);
       clearPreview();
     } catch (err) {
-      setError(`Analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const msg = `Analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      setError(msg);
+      toastError('Media Analysis Failed', 'Could not analyze media. Please try again.', {
+        label: 'Retry',
+        onClick: () => analyzeMedia(base64Data),
+      });
     } finally {
       setIsLoading(false);
     }
