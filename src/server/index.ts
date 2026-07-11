@@ -1075,14 +1075,11 @@ app.post('/api/tts', async (req, res) => {
       return res.status(404).json({ error: 'INWORLD_API_KEY is not configured in environment variables.' });
     }
 
-    const rawVoiceId = ((voiceId as string) || 'Sarah').trim();
-    const presetVoiceMap: Record<string, string> = {
-      Sarah: 'inworld_en_us_sarah',
-      Ashley: 'inworld_en_us_ashley',
-      Dennis: 'inworld_en_us_dennis',
-    };
-    const selectedVoiceId = presetVoiceMap[rawVoiceId] || rawVoiceId;
-    console.info(`[Inworld TTS] voiceId raw="${rawVoiceId}" resolved="${selectedVoiceId}"`);
+    // Inworld voice ids ARE the plain display names ("Sarah", "Ashley",
+    // "Dennis" — verified against GET /tts/v1/voices). The old
+    // inworld_en_us_* mapping produced "Unknown voice" 404s from Inworld.
+    const selectedVoiceId = ((voiceId as string) || 'Sarah').trim();
+    console.info(`[Inworld TTS] voiceId="${selectedVoiceId}"`);
 
     const requestBody = JSON.stringify({
       text: text as string,
