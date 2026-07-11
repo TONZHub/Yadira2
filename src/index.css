@@ -30,6 +30,10 @@ svg {
   width: 100%;
 }
 
+.patient-view .patient-chat-panel {
+  max-height: calc(100dvh - 8rem);
+}
+
 /* Quick-prompt chip labels: always wrap, never overflow */
 .patient-view .faq-chip {
   word-break: break-word;
@@ -39,15 +43,39 @@ svg {
 
 /* ≤ 1024 px – tablet tighten */
 @media (max-width: 1024px) {
+  /* Reserve space for the sticky global header plus the surrounding page padding. */
+  .patient-view .patient-chat-panel {
+    max-height: calc(100dvh - 9rem);
+  }
+
   .patient-view .patient-message-log {
+    min-height: 12rem;
     padding: 1rem;
   }
 }
 
 /* ≤ 768 px – mobile layout */
 @media (max-width: 768px) {
+  /* Mobile header stacks taller, so keep the panel anchored inside the remaining viewport. */
+  .patient-view .patient-chat-panel {
+    max-height: calc(100dvh - 8rem);
+  }
+
   .patient-view .patient-header-actions {
     gap: 0.375rem;
+  }
+
+  .patient-view .patient-message-log {
+    min-height: 14rem;
+  }
+
+  .patient-view .patient-quick-prompts {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    max-height: 8rem;
+    overflow-y: auto;
+    align-content: flex-start;
+    overscroll-behavior: contain;
   }
 }
 

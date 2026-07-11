@@ -1142,7 +1142,7 @@ function AppContent() {
             >
               
               {/* Left Column: Yadira Core Conversation Window */}
-              <div className={`lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[400px] sm:min-h-[550px] lg:min-h-[650px] max-h-[80dvh] lg:max-h-none transition-all duration-500 ${
+              <div className={`patient-chat-panel lg:col-span-7 flex flex-col bg-white rounded-3xl border shadow-sm overflow-hidden min-h-[400px] sm:min-h-[550px] lg:min-h-[650px] transition-all duration-500 ${
                 patientMode === 'vivid' ? 'border-rose-200 ring-2 ring-rose-500/5' : 'border-[#E3DFC2]'
               }`}>
                 
@@ -1221,7 +1221,7 @@ function AppContent() {
                 </div>
 
                 {/* Message Log */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#FCFAF5]">
+                <div className="patient-message-log flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#FCFAF5]">
                   {chatMessages.map((msg) => (
                     <div
                       key={msg.id}
@@ -1293,7 +1293,7 @@ function AppContent() {
                 </div>
 
                 {/* Pre-configured Helpful Anxious Cues */}
-                <div className="bg-[#FAF9F5] border-t border-[#E3DFC2] p-3 sm:p-4 flex flex-wrap gap-2 sm:gap-2.5">
+                <div className="patient-quick-prompts shrink-0 bg-[#FAF9F5] border-t border-[#E3DFC2] p-3 sm:p-4 flex flex-wrap gap-2 sm:gap-2.5">
                   <span className="text-xs text-[#7E7D76] w-full font-bold uppercase tracking-wider mb-1 px-1">
                     Tap to ask {patientMode === 'vivid' ? representedPersona : 'Yadira'}:
                   </span>
