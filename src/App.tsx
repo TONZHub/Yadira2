@@ -1138,7 +1138,7 @@ function AppContent() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.35 }}
-              className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1"
+              className="patient-view grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 flex-1"
             >
               
               {/* Left Column: Yadira Core Conversation Window */}
@@ -1147,26 +1147,26 @@ function AppContent() {
               }`}>
                 
                 {/* Active Yadira Header */}
-                <div className={`border-b px-6 py-4 flex items-center justify-between transition-all duration-500 ${
+                <div className={`border-b px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between flex-wrap gap-y-2 transition-all duration-500 ${
                   patientMode === 'vivid' ? 'bg-[#FCF6F6] border-rose-100' : 'bg-[#FAF9F5] border-[#E3DFC2]'
                 }`}>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-3 sm:space-x-4">
                     <div className="relative">
                       {/* Gentle pulsating visual heartbeat matching respiration rate */}
                       <span className={`absolute inset-0 rounded-full opacity-20 animate-ping transition-all duration-500 ${
                         patientMode === 'vivid' ? 'bg-rose-500' : 'bg-[#5C8D71]'
                       }`}></span>
-                      <div className={`w-14 h-14 rounded-full bg-gradient-to-tr flex items-center justify-center text-white border-2 border-white shadow-sm relative transition-all duration-500 ${
+                      <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr flex items-center justify-center text-white border-2 border-white shadow-sm relative transition-all duration-500 ${
                         patientMode === 'vivid' 
                           ? 'from-rose-400 to-pink-500' 
                           : 'from-[#5C8D71] to-[#92B4A1]'
                       }`}>
-                        <HeartHandshake className="w-7 h-7" />
+                        <HeartHandshake className="w-6 h-6 sm:w-7 sm:h-7" />
                       </div>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-bold text-[#2C2C2A] leading-tight">
+                        <h2 className="text-lg sm:text-xl font-bold text-[#2C2C2A] leading-tight">
                           {patientMode === 'vivid' ? representedPersona : 'Yadira'}
                         </h2>
                         {isCaregiverPreview && (
@@ -1187,48 +1187,48 @@ function AppContent() {
                   </div>
 
                   {/* Accessibility Audio Settings */}
-                  <div className="flex items-center space-x-2">
+                  <div className="patient-header-actions flex items-center space-x-2">
                     <button
                       id="toggle-voice"
                       onClick={() => { setVoiceEnabled(!voiceEnabled); playSoundCue('pop'); }}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-2 sm:p-3 rounded-xl border transition-all ${
                         voiceEnabled 
                           ? 'bg-[#E8F1EB] text-[#3A5D45] border-[#CEDFCF]' 
                           : 'bg-[#F2EFE9] text-[#7E7D76] border-[#D8D5C4]'
                       }`}
                       title={voiceEnabled ? "Mute Yadira's Voice" : "Enable Yadira's Voice"}
                     >
-                      {voiceEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+                      {voiceEnabled ? <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" /> : <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />}
                     </button>
                     <button
                       id="toggle-chime"
                       onClick={() => { setSoundFeedback(!soundFeedback); playSoundCue('pop'); }}
-                      className={`p-3 rounded-xl border transition-all ${
+                      className={`p-2 sm:p-3 rounded-xl border transition-all ${
                         soundFeedback 
                           ? 'bg-[#E8F1EB] text-[#3A5D45] border-[#CEDFCF]' 
                           : 'bg-[#F2EFE9] text-[#7E7D76] border-[#D8D5C4]'
                       }`}
                       title={soundFeedback ? "Mute sound triggers" : "Enable sound triggers"}
                     >
-                      <Sparkles className="w-6 h-6" />
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
                     </button>
                   </div>
                 </div>
 
                 {/* Subtitle / Big Screen Text Display */}
-                <div className="bg-[#FAF9F5] border-b border-[#E3DFC2] px-6 py-2 text-center text-xs text-[#8A8981] font-medium tracking-wide">
+                <div className="bg-[#FAF9F5] border-b border-[#E3DFC2] px-3 py-2 sm:px-6 text-center text-xs text-[#8A8981] font-medium tracking-wide">
                   CLINICAL ACCESSIBILITY STANDARD: SENSORY CONTRAST & SLOW DIALOGUE REASSURANCE
                 </div>
 
                 {/* Message Log */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FCFAF5]">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-[#FCFAF5]">
                   {chatMessages.map((msg) => (
                     <div
                       key={msg.id}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-2xl p-5 shadow-xs transition-all ${
+                        className={`max-w-[92%] sm:max-w-[85%] rounded-2xl p-4 sm:p-5 shadow-xs transition-all ${
                           msg.role === 'user'
                             ? 'bg-[#E3EFE7] text-[#25422F] border border-[#CEDFCE] rounded-tr-none'
                             : 'bg-white text-[#2C2C2A] border border-[#E4E0C4] rounded-tl-none font-medium'
@@ -1256,7 +1256,7 @@ function AppContent() {
                           </div>
                         )}
                         
-                        <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
+                        <div className="flex items-center justify-between flex-wrap gap-y-1 mt-3 text-xs text-[#8A8981]">
                           <span>{msg.timestamp}</span>
                           {msg.role === 'model' && (
                             <button
@@ -1293,7 +1293,7 @@ function AppContent() {
                 </div>
 
                 {/* Pre-configured Helpful Anxious Cues */}
-                <div className="bg-[#FAF9F5] border-t border-[#E3DFC2] p-4 flex flex-wrap gap-2.5">
+                <div className="bg-[#FAF9F5] border-t border-[#E3DFC2] p-3 sm:p-4 flex flex-wrap gap-2 sm:gap-2.5">
                   <span className="text-xs text-[#7E7D76] w-full font-bold uppercase tracking-wider mb-1 px-1">
                     Tap to ask {patientMode === 'vivid' ? representedPersona : 'Yadira'}:
                   </span>
@@ -1303,7 +1303,7 @@ function AppContent() {
                       id={`patient-faq-${faq.id}`}
                       onClick={() => handleSendMessage(faq.question)}
                       disabled={isTyping}
-                      className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 active:scale-95 text-left max-w-full truncate shadow-xs"
+                      className="faq-chip w-full sm:w-auto px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 active:scale-95 text-left whitespace-normal break-words shadow-xs"
                     >
                       {faq.question}
                     </button>
@@ -1311,30 +1311,30 @@ function AppContent() {
                   <button
                     onClick={() => handleSendMessage("Tell me a comforting story.")}
                     disabled={isTyping}
-                    className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 shadow-xs"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 shadow-xs"
                   >
                     📖 Tell me a story
                   </button>
                   <button
                     onClick={() => handleSendMessage("Help me feel calm, I am a bit anxious.")}
                     disabled={isTyping}
-                    className="px-4 py-2.5 bg-[#FFF2F2] border border-[#FFD9D9] text-sm font-bold text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 shadow-xs"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-[#FFF2F2] border border-[#FFD9D9] text-sm font-bold text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200 shadow-xs"
                   >
                     ❤️ Help me feel calm
                   </button>
                 </div>
 
                 {/* Patient Chat Input */}
-                <div className="p-4 bg-white border-t border-[#E3DFC2] flex flex-col gap-3">
+                <div className="p-3 sm:p-4 bg-white border-t border-[#E3DFC2] flex flex-col gap-3">
                   {/* Voice and Media Controls */}
-                  <div className="flex gap-3 flex-wrap">
-                    <div className="flex-1 min-w-0 sm:min-w-[200px]">
+                  <div className="patient-media-controls flex gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
                       <VoiceInput
                         onTranscript={(text, emotion) => handleSendMessage(text, emotion)}
                         disabled={isTyping}
                       />
                     </div>
-                    <div className="flex-1 min-w-0 sm:min-w-[200px]">
+                    <div className="flex-1 min-w-0">
                       <MediaUpload
                         onMediaAnalyzed={(insight) => {
                           const msg = `I see something interesting!`;
@@ -1370,16 +1370,16 @@ function AppContent() {
               </div>
 
               {/* Right Column: Visual Routine Cues & Memory Book */}
-              <div className="lg:col-span-5 flex flex-col space-y-8">
+              <div className="lg:col-span-5 flex flex-col space-y-4 lg:space-y-8">
                 
                 {/* Daily Routine / Care Tasks Visual Checklist */}
-                <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2.5">
                       <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
                         <Calendar className="w-6 h-6" />
                       </div>
-                      <h3 className="text-xl font-bold text-[#2C2C2A]">Today's Warm Rituals</h3>
+                      <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2A]">Today's Warm Rituals</h3>
                     </div>
                     <span className="text-xs font-bold text-[#7E7D76] uppercase tracking-wider bg-[#F4F1EA] px-2.5 py-1 rounded-full border border-[#D5D2B3]">
                       Today
@@ -1429,13 +1429,13 @@ function AppContent() {
                 </div>
 
                 {/* Treasured Memory Album View */}
-                <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2.5">
                       <div className="p-2 rounded-lg bg-[#FDF1F1] text-rose-500">
                         <Heart className="w-6 h-6" />
                       </div>
-                      <h3 className="text-xl font-bold text-[#2C2C2A]">Treasured Memory Album</h3>
+                      <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2A]">Treasured Memory Album</h3>
                     </div>
                     <span className="text-xs font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100">
                       {memories.length} Memories
@@ -1452,9 +1452,9 @@ function AppContent() {
                       return (
                         <div
                           key={mem.id}
-                          className="p-5 rounded-2xl bg-[#FCFAF5] border border-[#E3DFC2] flex flex-col shadow-xs"
+                          className="p-4 sm:p-5 rounded-2xl bg-[#FCFAF5] border border-[#E3DFC2] flex flex-col shadow-xs"
                         >
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between flex-wrap gap-2">
                             <span className="text-xs font-bold uppercase px-2.5 py-1 rounded-full bg-white border border-[#D5D2B3] text-[#5C8D71]">
                               🏷️ {mem.relationshipOrEra}
                             </span>

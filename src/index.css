@@ -22,6 +22,36 @@ svg {
   height: auto;
 }
 
+/* ── Patient view ─────────────────────────────────────────────────── */
+
+/* Ensure the whole patient panel never bleeds past the viewport */
+.patient-view {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Quick-prompt chip labels: always wrap, never overflow */
+.patient-view .faq-chip {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+/* ≤ 1024 px – tablet tighten */
+@media (max-width: 1024px) {
+  .patient-view .patient-message-log {
+    padding: 1rem;
+  }
+}
+
+/* ≤ 768 px – mobile layout */
+@media (max-width: 768px) {
+  .patient-view .patient-header-actions {
+    gap: 0.375rem;
+  }
+}
+
+/* ≤ 480 px – compact */
 @media (max-width: 480px) {
   .app-header {
     padding-left: 0.75rem;
@@ -31,5 +61,19 @@ svg {
   .tab-switcher button {
     font-size: 0.75rem;
     padding: 0.5rem 0.625rem;
+  }
+
+  /* Prevent known fixed-width elements inside the patient view from overflowing */
+  .patient-view img,
+  .patient-view video,
+  .patient-view input,
+  .patient-view button,
+  .patient-view textarea {
+    max-width: 100%;
+  }
+
+  /* Stack voice/media controls vertically on very small screens */
+  .patient-view .patient-media-controls {
+    flex-direction: column;
   }
 }
