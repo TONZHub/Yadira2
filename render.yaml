@@ -1,0 +1,32 @@
+# Render blueprint for Yadira (https://render.com/docs/blueprint-spec)
+# Deploy: Render dashboard → New → Blueprint → pick this repo.
+# All env vars are prompted in the dashboard on first deploy (sync: false);
+# copy the values from your local .env. The VITE_FIREBASE_* vars are needed
+# at BUILD time (Vite bakes them into the client bundle).
+services:
+  - type: web
+    name: yadira
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/shared-mode
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: INWORLD_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false

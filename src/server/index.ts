@@ -1,5 +1,6 @@
 import express from 'express';
 import { GoogleGenAI, Type } from '@google/genai';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -1147,11 +1148,18 @@ app.use((err: any, _req: any, res: any, next: any) => {
   return next(err);
 });
 
-// Serve static assets in production
+// Serve static assets in production.
+// This file lives at src/server/index.ts in dev (../../dist = project dist)
+// but is BUNDLED to dist/server.cjs for production, where __dirname is the
+// dist folder itself and ../../dist points outside the project. Probe both.
 const resolvedDirname = typeof __dirname !== 'undefined'
   ? __dirname
   : path.dirname(fileURLToPath(import.meta.url));
-const distPath = path.resolve(resolvedDirname, '../../dist');
+const distCandidates = [
+  path.resolve(resolvedDirname, '../../dist'),
+  resolvedDirname,
+];
+const distPath = distCandidates.find((p) => fs.existsSync(path.join(p, 'index.html'))) ?? distCandidates[0];
 
 app.use(express.static(distPath));
 
