@@ -1037,7 +1037,7 @@ function AppContent() {
       activeTab === 'patient' && patientMode === 'vivid'
         ? 'bg-[#FCF5F5]'
         : 'bg-[#F4F1EA]'
-    } relative overflow-hidden overflow-x-clip`}>
+    } relative overflow-hidden`}>
       <div className="pointer-events-none absolute inset-0">
         <motion.div
           className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
@@ -1060,13 +1060,13 @@ function AppContent() {
       </div>
       
       {/* Dynamic Header */}
-      <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-3 md:gap-4 shadow-xs">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 md:gap-4 shadow-xs">
+        <div className="flex min-w-[150px] items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
             <Brain className="w-6 h-6" id="app-logo-icon" />
           </div>
           <div>
-            <span className="brand-title text-xl sm:text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
+            <span className="text-xl sm:text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
             <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
               XPRIZE Dementia Companion
             </span>
