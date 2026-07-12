@@ -31,7 +31,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
@@ -407,6 +407,18 @@ function AppContent() {
   const [chatMessages, setChatMessages] = useStoreList<Message>('chat', [buildGreeting()]);
   const chatMessagesRef = useRef(chatMessages);
   chatMessagesRef.current = chatMessages;
+  // Messages that were already present at mount render fully; anything that
+  // arrives later reveals one thought-bubble at a time (see DigestibleMessage).
+  const mountIdsRef = useRef<Set<string> | null>(null);
+  if (mountIdsRef.current === null) {
+    mountIdsRef.current = new Set(chatMessages.map((m) => m.id));
+  }
+  // Chunk reveals happen after the message itself is appended, so the log
+  // needs a nudge to follow them down.
+  const scrollLogToBottom = () => {
+    const log = messageLogRef.current;
+    if (log) log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+  };
   // Append helper — caps the stored transcript so localStorage/Firestore stay lean.
   const appendChatMessage = (msg: Message) => {
     setChatMessages(prev => [...prev, msg].slice(-60));
@@ -1316,48 +1328,70 @@ function AppContent() {
                       key={msg.id}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`max-w-[85%] rounded-2xl p-5 shadow-xs transition-all ${
-                          msg.role === 'user'
-                            ? 'bg-[#E3EFE7] text-[#25422F] border border-[#CEDFCE] rounded-tr-none'
-                            : 'bg-white text-[#2C2C2A] border border-[#E4E0C4] rounded-tl-none font-medium'
-                        }`}
-                      >
-                        {/* Huge easy-to-read text size for dementia patients */}
-                        <p className="text-lg md:text-xl leading-relaxed tracking-wide font-sans">
-                          {msg.text}
-                        </p>
-
-                        {msg.emotion && (
-                          <div className="mt-2">
-                            <EmotionBadge emotion={msg.emotion.emotion} confidence={msg.emotion.confidence} />
-                          </div>
-                        )}
-
-                        {msg.mediaInsight && (
-                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="text-sm text-blue-900">
-                              <span className="font-semibold">Photo:</span> {msg.mediaInsight.description}
-                            </p>
-                            <div className="mt-1">
-                              <EmotionBadge emotion={msg.mediaInsight.emotion} />
+                      {msg.role === 'model' ? (
+                        // Model replies land one thought per bubble, revealed at
+                        // a human pace — a paragraph is a wall of text to a
+                        // dementia patient; a sentence is a moment.
+                        <DigestibleMessage
+                          text={msg.text}
+                          animate={!mountIdsRef.current?.has(msg.id)}
+                          bubbleClassName="rounded-2xl p-5 shadow-xs transition-all bg-white text-[#2C2C2A] border border-[#E4E0C4] rounded-tl-none font-medium"
+                          textClassName="text-lg md:text-xl leading-relaxed tracking-wide font-sans"
+                          onChunkRevealed={scrollLogToBottom}
+                          extras={
+                            msg.mediaInsight ? (
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <p className="text-sm text-blue-900">
+                                  <span className="font-semibold">Photo:</span> {msg.mediaInsight.description}
+                                </p>
+                                <div className="mt-1">
+                                  <EmotionBadge emotion={msg.mediaInsight.emotion} />
+                                </div>
+                              </div>
+                            ) : undefined
+                          }
+                          footer={
+                            <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
+                              <span>{msg.timestamp}</span>
+                              <button
+                                onClick={() => speakText(msg.text)}
+                                className="flex items-center space-x-1 px-2.5 py-1 bg-[#F5F3EC] hover:bg-[#EAE8DD] rounded-md transition-all text-[#3A5D45]"
+                              >
+                                <Volume2 className="w-3.5 h-3.5" />
+                                <span className="font-semibold text-xs">Read to me</span>
+                              </button>
                             </div>
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
-                          <span>{msg.timestamp}</span>
-                          {msg.role === 'model' && (
-                            <button
-                              onClick={() => speakText(msg.text)}
-                              className="flex items-center space-x-1 px-2.5 py-1 bg-[#F5F3EC] hover:bg-[#EAE8DD] rounded-md transition-all text-[#3A5D45]"
-                            >
-                              <Volume2 className="w-3.5 h-3.5" />
-                              <span className="font-semibold text-xs">Read to me</span>
-                            </button>
+                          }
+                        />
+                      ) : (
+                        <div className="max-w-[85%] rounded-2xl p-5 shadow-xs transition-all bg-[#E3EFE7] text-[#25422F] border border-[#CEDFCE] rounded-tr-none">
+                          {/* Huge easy-to-read text size for dementia patients */}
+                          <p className="text-lg md:text-xl leading-relaxed tracking-wide font-sans">
+                            {msg.text}
+                          </p>
+
+                          {msg.emotion && (
+                            <div className="mt-2">
+                              <EmotionBadge emotion={msg.emotion.emotion} confidence={msg.emotion.confidence} />
+                            </div>
                           )}
+
+                          {msg.mediaInsight && (
+                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-sm text-blue-900">
+                                <span className="font-semibold">Photo:</span> {msg.mediaInsight.description}
+                              </p>
+                              <div className="mt-1">
+                                <EmotionBadge emotion={msg.mediaInsight.emotion} />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between mt-3 text-xs text-[#8A8981]">
+                            <span>{msg.timestamp}</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ))}
 
