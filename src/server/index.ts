@@ -45,7 +45,7 @@ const OPENROUTER_MODEL = 'poolside/laguna-xs-2.1:free';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
 let sharedPatientMode: 'lucid' | 'vivid' = 'lucid';
 
-let sharedDriftActive = false;
+let sharedAuroraActive = false;
 
 // Shared mode sync for caregiver <-> patient surfaces during demos.
 // Registered once at module load (top-level route, NOT nested inside another
@@ -67,17 +67,17 @@ app.post('/api/shared-mode', async (req, res) => {
 });
 
 // Drift mode — intentional visual dissociation screen (caregiver or patient triggered).
-app.get('/api/drift-mode', async (_req, res) => {
-  res.json({ active: sharedDriftActive });
+app.get('/api/aurora-mode', async (_req, res) => {
+  res.json({ active: sharedAuroraActive });
 });
 
-app.post('/api/drift-mode', async (req, res) => {
+app.post('/api/aurora-mode', async (req, res) => {
   const active = req.body?.active;
   if (typeof active !== 'boolean') {
     return res.status(400).json({ error: 'active must be a boolean' });
   }
-  sharedDriftActive = active;
-  res.json({ ok: true, active: sharedDriftActive });
+  sharedAuroraActive = active;
+  res.json({ ok: true, active: sharedAuroraActive });
 });
 
 

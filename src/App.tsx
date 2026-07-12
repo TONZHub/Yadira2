@@ -31,7 +31,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, DriftScreen } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
@@ -305,11 +305,11 @@ function AppContent() {
     };
   }, []);
 
-  // ---- Drift Mode (intentional visual dissociation screen) ----
-  const [driftActive, setDriftActiveState] = useState(false);
+  // ---- Aurora (intentional visual dissociation screen) ----
+  const [auroraActive, setAuroraActiveState] = useState(false);
 
-  const setDriftActive = (active: boolean) => {
-    setDriftActiveState(active);
+  const setAuroraActive = (active: boolean) => {
+    setAuroraActiveState(active);
     // Silence Yadira when drifting — audio is jarring against the visual calm
     if (active) {
       if (activeAudioRef.current) {
@@ -320,9 +320,9 @@ function AppContent() {
       setIsSpeaking(false);
     }
     // Same-browser tabs via storage event
-    localStorage.setItem('yadira_drift_mode', JSON.stringify({ active, at: Date.now() }));
+    localStorage.setItem('yadira_aurora_mode', JSON.stringify({ active, at: Date.now() }));
     // Cross-device sync via backend
-    fetch('/api/drift-mode', {
+    fetch('/api/aurora-mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active }),
@@ -331,10 +331,10 @@ function AppContent() {
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== 'yadira_drift_mode' || !event.newValue) return;
+      if (event.key !== 'yadira_aurora_mode' || !event.newValue) return;
       try {
         const parsed = JSON.parse(event.newValue) as { active?: boolean };
-        if (typeof parsed.active === 'boolean') setDriftActiveState(parsed.active);
+        if (typeof parsed.active === 'boolean') setAuroraActiveState(parsed.active);
       } catch { /* ignore */ }
     };
     window.addEventListener('storage', onStorage);
@@ -342,10 +342,10 @@ function AppContent() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/drift-mode');
+        const res = await fetch('/api/aurora-mode');
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (typeof data?.active === 'boolean') setDriftActiveState(data.active);
+        if (typeof data?.active === 'boolean') setAuroraActiveState(data.active);
       } catch { /* best-effort */ }
     };
     poll();
@@ -475,12 +475,12 @@ function AppContent() {
           ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
           : `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        if (activeTab === 'patient' && !driftActive) speakText(text);
+        if (activeTab === 'patient' && !auroraActive) speakText(text);
         if (soundFeedback) playSoundCue('chime');
       } else {
         const text = `Hello, ${patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        if (activeTab === 'patient' && !driftActive) speakText(text);
+        if (activeTab === 'patient' && !auroraActive) speakText(text);
         if (soundFeedback) playSoundCue('pop');
       }
     }
@@ -504,7 +504,7 @@ function AppContent() {
   }
 
   useEffect(() => {
-    if (activeTab !== 'patient' || !driftEnabled || driftActive) return;
+    if (activeTab !== 'patient' || !driftEnabled || auroraActive) return;
     if (isTyping) return;
     // Wait for Beth's voice to actually finish before starting the drift
     // countdown — otherwise the timer runs out while she's still talking.
@@ -1175,13 +1175,13 @@ function AppContent() {
             </div>
           )}
 
-          {/* Drift Mode button — patient side */}
+          {/* Aurora button — patient side */}
           {activeTab === 'patient' && (
             <button
-              id="btn-drift"
-              onClick={() => setDriftActive(true)}
+              id="btn-aurora"
+              onClick={() => setAuroraActive(true)}
               className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-indigo-500 hover:border-indigo-200 transition-all"
-              title="Drift Mode — gentle visual escape"
+              title="Aurora — a gentle visual escape"
             >
               <Sparkles className="w-5 h-5" />
             </button>
@@ -1207,9 +1207,9 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Drift Mode full-screen overlay — rendered above everything */}
-      {driftActive && (
-        <DriftScreen onExit={() => setDriftActive(false)} />
+      {/* Aurora full-screen overlay — rendered above everything */}
+      {auroraActive && (
+        <AuroraScreen onExit={() => setAuroraActive(false)} />
       )}
 
       {/* Main Content Stage */}
@@ -1717,20 +1717,20 @@ function AppContent() {
 
                 {/* Persona & Drift Controls */}
                 <div className="lg:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Drift Mode — caregiver trigger */}
+                  {/* Aurora — caregiver trigger */}
                   <button
                     type="button"
-                    id="btn-caregiver-drift"
-                    onClick={() => setDriftActive(true)}
+                    id="btn-caregiver-aurora"
+                    onClick={() => setAuroraActive(true)}
                     className="p-4 rounded-2xl border border-indigo-200 bg-indigo-50 text-left flex items-start space-x-3 hover:bg-indigo-100 active:scale-[0.98] transition-all duration-300"
                   >
                     <div className="p-2 rounded-xl bg-white text-indigo-500 shadow-xs shrink-0">
                       <Sparkles className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-sm block font-bold text-indigo-700">Drift Mode</span>
+                      <span className="text-sm block font-bold text-indigo-700">Aurora</span>
                       <span className="text-[11px] font-normal leading-tight block mt-0.5 text-indigo-500">
-                        Opens a soothing aurora screen on both devices. Tap anywhere to return.
+                        Opens a soothing aurora screen on both devices. The soft “return” button below ends it.
                       </span>
                     </div>
                   </button>
