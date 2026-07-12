@@ -45,6 +45,8 @@ const OPENROUTER_MODEL = 'poolside/laguna-xs-2.1:free';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
 let sharedPatientMode: 'lucid' | 'vivid' = 'lucid';
 
+let sharedDriftActive = false;
+
 // Shared mode sync for caregiver <-> patient surfaces during demos.
 // Registered once at module load (top-level route, NOT nested inside another
 // handler) so it exists immediately on server start — previously this was
@@ -63,6 +65,21 @@ app.post('/api/shared-mode', async (req, res) => {
   sharedPatientMode = mode;
   res.json({ ok: true, mode: sharedPatientMode });
 });
+
+// Drift mode — intentional visual dissociation screen (caregiver or patient triggered).
+app.get('/api/drift-mode', async (_req, res) => {
+  res.json({ active: sharedDriftActive });
+});
+
+app.post('/api/drift-mode', async (req, res) => {
+  const active = req.body?.active;
+  if (typeof active !== 'boolean') {
+    return res.status(400).json({ error: 'active must be a boolean' });
+  }
+  sharedDriftActive = active;
+  res.json({ ok: true, active: sharedDriftActive });
+});
+
 
 // Helper to check if Gemini access (Enterprise Platform or AI Studio) is configured at all
 const isGeminiKeyMissing = !useEnterprisePlatform && (!geminiApiKey || geminiApiKey === 'MY_GEMINI_API_KEY' || geminiApiKey.trim() === '');
