@@ -59,8 +59,40 @@ Open the app in **two different browsers** (or your phone + laptop). Add a memor
 - `src/lib/useStore.ts` — `useStoreList` / `useStoreDoc` hooks (Firestore + localStorage mirror)
 - `src/App.tsx` — four localStorage blocks replaced with hooks; **caregiver profile now persists** (it previously reset to Eleanor/Thomas on every refresh)
 
+## Step 6 — Per-family care circles (built) + security rules (paste these!)
+
+Every signed-in account now gets its own isolated circle: the circle id IS the
+Firebase Auth uid. `default-circle` remains only as the anonymous demo space.
+A patient device joins the family's circle by being signed in with the
+caregiver's account (enter patient mode from the signed-in device — the uid,
+and therefore the circle, carries over).
+
+**Before taking real customers**, replace the test-mode Firestore rules
+(Firestore Database → Rules) with:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each family's circle is readable/writable ONLY by that account.
+    match /careCircles/{circleId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == circleId;
+    }
+    // The anonymous demo circle stays open so the public demo keeps working.
+    match /careCircles/default-circle/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Known limitation: local demo sessions (the no-Firebase fallback and "I'm a
+Patient" without a signed-in caregiver) are not Firebase-authenticated, so
+under these rules their cloud sync silently stays off and they run on
+localStorage only. That's the correct trade: paying families are isolated
+and authenticated; the demo still works.
+
 ## Next up (not yet built)
 
-- Firebase Auth for caregiver accounts (`circleId` per household instead of `default-circle`)
-- Firestore security rules (currently test mode — fine for demo, not for real patient data)
+- Stripe subscription gating per circle
 - Google Calendar integration on the server layer

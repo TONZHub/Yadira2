@@ -43,9 +43,17 @@ const useEnterprisePlatform = !!gcpProject || !!enterpriseApiKey;
 // reasoning document rather than a script.
 const OPENROUTER_MODEL = 'poolside/laguna-xs-2.1:free';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
-let sharedPatientMode: 'lucid' | 'vivid' = 'lucid';
+// Cross-device sync state, keyed by care circle. One family toggling Vivid
+// or Aurora must never flip the screens of another paying customer — the
+// old module-level booleans were shared across every visitor to the server.
+const sharedPatientMode = new Map<string, 'lucid' | 'vivid'>();
+const sharedAuroraActive = new Map<string, boolean>();
 
-let sharedAuroraActive = false;
+function circleOf(req: express.Request): string {
+  const raw = (req.query?.circle ?? req.body?.circle) as string | undefined;
+  const circle = (raw || '').trim();
+  return circle ? circle.slice(0, 128) : 'default-circle';
+}
 
 // Shared mode sync for caregiver <-> patient surfaces during demos.
 // Registered once at module load (top-level route, NOT nested inside another
@@ -53,8 +61,8 @@ let sharedAuroraActive = false;
 // accidentally declared inside the /api/tts handler body, which meant the
 // route only came into existence after the first TTS call, and was
 // re-registered (duplicated) on every subsequent call.
-app.get('/api/shared-mode', async (_req, res) => {
-  res.json({ mode: sharedPatientMode });
+app.get('/api/shared-mode', async (req, res) => {
+  res.json({ mode: sharedPatientMode.get(circleOf(req)) ?? 'lucid' });
 });
 
 app.post('/api/shared-mode', async (req, res) => {
@@ -62,13 +70,13 @@ app.post('/api/shared-mode', async (req, res) => {
   if (mode !== 'lucid' && mode !== 'vivid') {
     return res.status(400).json({ error: 'mode must be lucid or vivid' });
   }
-  sharedPatientMode = mode;
-  res.json({ ok: true, mode: sharedPatientMode });
+  sharedPatientMode.set(circleOf(req), mode);
+  res.json({ ok: true, mode });
 });
 
-// Drift mode — intentional visual dissociation screen (caregiver or patient triggered).
-app.get('/api/aurora-mode', async (_req, res) => {
-  res.json({ active: sharedAuroraActive });
+// Aurora — intentional visual dissociation screen (caregiver or patient triggered).
+app.get('/api/aurora-mode', async (req, res) => {
+  res.json({ active: sharedAuroraActive.get(circleOf(req)) ?? false });
 });
 
 app.post('/api/aurora-mode', async (req, res) => {
@@ -76,8 +84,8 @@ app.post('/api/aurora-mode', async (req, res) => {
   if (typeof active !== 'boolean') {
     return res.status(400).json({ error: 'active must be a boolean' });
   }
-  sharedAuroraActive = active;
-  res.json({ ok: true, active: sharedAuroraActive });
+  sharedAuroraActive.set(circleOf(req), active);
+  res.json({ ok: true, active });
 });
 
 

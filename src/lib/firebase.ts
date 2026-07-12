@@ -58,7 +58,12 @@ export function getCurrentUserId(): string {
 //     logs/{id}      (collection) — DailyLog (id = date)
 //     routine/{id}   (collection) — RoutineItem
 //
-// When Auth is wired in, userId comes from Firebase Auth.
-// For local-only/localStorage mode, userId = 'default-circle'.
+// The circle id IS the authenticated user's uid, so every family gets an
+// isolated circle — a paying customer must never see another family's
+// data. 'default-circle' remains only as the anonymous/demo fallback.
+// A patient device joins the family circle by being signed in on the
+// caregiver's account (patient mode on an authed device keeps the uid).
 // ------------------------------------------------------------------
-export const CIRCLE_ID = 'default-circle';
+export function getCircleId(): string {
+  return getCurrentUserId();
+}

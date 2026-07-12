@@ -20,15 +20,20 @@ import {
   setDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured, CIRCLE_ID } from './firebase';
-
-const LS_PREFIX = 'yadira_';
+import { db, isFirebaseConfigured, getCircleId } from './firebase';
 
 // ---------- shared localStorage helpers ----------
+// Keys are namespaced by care circle so two accounts sharing one browser
+// can never see each other's cached data (a paying family's memories must
+// not flash up for whoever logs in next on the same device).
+
+function lsKey(key: string): string {
+  return `yadira_${getCircleId()}_${key}`;
+}
 
 function readLocal<T>(key: string, fallback: T): T {
   try {
-    const saved = localStorage.getItem(LS_PREFIX + key);
+    const saved = localStorage.getItem(lsKey(key));
     return saved ? (JSON.parse(saved) as T) : fallback;
   } catch {
     return fallback;
@@ -37,7 +42,7 @@ function readLocal<T>(key: string, fallback: T): T {
 
 function writeLocal<T>(key: string, value: T) {
   try {
-    localStorage.setItem(LS_PREFIX + key, JSON.stringify(value));
+    localStorage.setItem(lsKey(key), JSON.stringify(value));
   } catch {
     /* storage full or unavailable — non-fatal */
   }
@@ -61,11 +66,15 @@ export function useStoreList<T extends Record<string, any>>(
   // Guard so our own writes don't loop back through the snapshot listener
   const pendingWrite = useRef(false);
 
+  // The family's isolated circle — resolved per mount, so it always reflects
+  // the account that's actually signed in (AppContent remounts on login).
+  const circleId = getCircleId();
+
   // Subscribe to Firestore (real-time, cross-device)
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
 
-    const colRef = collection(db, 'careCircles', CIRCLE_ID, key);
+    const colRef = collection(db, 'careCircles', circleId, key);
     const unsub = onSnapshot(
       colRef,
       (snap) => {
@@ -83,7 +92,7 @@ export function useStoreList<T extends Record<string, any>>(
       (err) => console.warn(`[Yadira] Firestore listen failed for "${key}"`, err)
     );
     return unsub;
-  }, [key]);
+  }, [key, circleId]);
 
   const update = useCallback(
     (updater: Updater<T>) => {
@@ -103,7 +112,7 @@ export function useStoreList<T extends Record<string, any>>(
             // optional Message fields like `emotion`). JSON round-trip strips
             // them, matching what writeLocal already persists.
             const clean = JSON.parse(JSON.stringify(item));
-            batch.set(doc(db!, 'careCircles', CIRCLE_ID, key, id), clean);
+            batch.set(doc(db!, 'careCircles', circleId, key, id), clean);
           });
           batch
             .commit()
@@ -116,7 +125,7 @@ export function useStoreList<T extends Record<string, any>>(
         }
       }
     },
-    [key, idField]
+    [key, idField, circleId]
   );
 
   return [items, update, synced];
@@ -131,11 +140,12 @@ export function useStoreDoc<T extends Record<string, any>>(
   const [value, setValue] = useState<T>(() => readLocal(key, initial));
   const [synced, setSynced] = useState(false);
   const pendingWrite = useRef(false);
+  const circleId = getCircleId();
 
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
 
-    const docRef = doc(db, 'careCircles', CIRCLE_ID, 'meta', key);
+    const docRef = doc(db, 'careCircles', circleId, 'meta', key);
     const unsub = onSnapshot(
       docRef,
       (snap) => {
@@ -153,7 +163,7 @@ export function useStoreDoc<T extends Record<string, any>>(
       (err) => console.warn(`[Yadira] Firestore listen failed for "${key}"`, err)
     );
     return unsub;
-  }, [key]);
+  }, [key, circleId]);
 
   const update = useCallback(
     (next: T) => {
@@ -164,7 +174,7 @@ export function useStoreDoc<T extends Record<string, any>>(
         pendingWrite.current = true;
         try {
           const clean = JSON.parse(JSON.stringify(next));
-          setDoc(doc(db, 'careCircles', CIRCLE_ID, 'meta', key), clean).catch(
+          setDoc(doc(db, 'careCircles', circleId, 'meta', key), clean).catch(
             (err) =>
               console.warn(`[Yadira] Firestore write failed for "${key}"`, err)
           );
@@ -173,7 +183,7 @@ export function useStoreDoc<T extends Record<string, any>>(
         }
       }
     },
-    [key]
+    [key, circleId]
   );
 
   return [value, update, synced];
