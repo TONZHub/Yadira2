@@ -1990,50 +1990,6 @@ function AppContent() {
                             className="w-full p-2 bg-white border border-[#C4C09E] rounded-xl text-xs font-bold text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
                           />
                         </div>
-
-                        <div>
-                          <span className="text-[10px] font-bold text-[#5E5D57] block mb-1">Inworld Voice Preset:</span>
-                          <select
-                            value={
-                              ['Sarah', 'Ashley', 'Dennis'].includes(representedVoiceId)
-                                ? representedVoiceId
-                                : 'custom'
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val !== 'custom') {
-                                setRepresentedVoiceId(val);
-                              } else {
-                                const customId = prompt("Enter Inworld Custom Voice ID:", representedVoiceId) || representedVoiceId;
-                                setRepresentedVoiceId(customId);
-                              }
-                            }}
-                            className="w-full p-2 bg-white border border-[#C4C09E] rounded-xl text-xs font-bold text-[#2C2C2A] focus:ring-1 focus:ring-[#3A5D45]"
-                          >
-                            <option value="Sarah">Sarah (Warm Female - Default)</option>
-                            <option value="Ashley">Ashley (Warm Female - Natural)</option>
-                            <option value="Dennis">Dennis (Calm Male - Friendly)</option>
-                            <option value="custom">Custom Inworld Voice ID...</option>
-                          </select>
-
-                          {!['Sarah', 'Ashley', 'Dennis'].includes(representedVoiceId) && (
-                            <div className="mt-1.5 flex items-center space-x-1">
-                              <span className="text-[9px] font-mono bg-rose-50 text-rose-700 px-2 py-0.5 rounded border border-rose-100 font-bold block truncate max-w-full">
-                                Custom ID: {representedVoiceId}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const customId = prompt("Enter Inworld Custom Voice ID:", representedVoiceId) || representedVoiceId;
-                                  setRepresentedVoiceId(customId);
-                                }}
-                                className="text-[9px] text-[#3A5D45] hover:underline font-bold"
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </div>
