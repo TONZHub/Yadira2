@@ -24,13 +24,14 @@ import {
   HelpCircle,
   Shield,
   HeartHandshake,
+  Music2,
   LogOut
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, DriftScreen } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
@@ -304,6 +305,58 @@ function AppContent() {
     };
   }, []);
 
+  // ---- Drift Mode (intentional visual dissociation screen) ----
+  const [driftActive, setDriftActiveState] = useState(false);
+
+  const setDriftActive = (active: boolean) => {
+    setDriftActiveState(active);
+    // Silence Yadira when drifting — audio is jarring against the visual calm
+    if (active) {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+      setIsSpeaking(false);
+    }
+    // Same-browser tabs via storage event
+    localStorage.setItem('yadira_drift_mode', JSON.stringify({ active, at: Date.now() }));
+    // Cross-device sync via backend
+    fetch('/api/drift-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    }).catch((err) => console.warn('[Yadira] drift-mode push failed', err));
+  };
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== 'yadira_drift_mode' || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue) as { active?: boolean };
+        if (typeof parsed.active === 'boolean') setDriftActiveState(parsed.active);
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('storage', onStorage);
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/drift-mode');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (typeof data?.active === 'boolean') setDriftActiveState(data.active);
+      } catch { /* best-effort */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(id);
+    };
+  }, []);
+
   // New Memory Modal State
   const [newMemTitle, setNewMemTitle] = useState('');
   const [newMemDesc, setNewMemDesc] = useState('');
@@ -422,12 +475,12 @@ function AppContent() {
           ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
           : `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        if (activeTab === 'patient') speakText(text);
+        if (activeTab === 'patient' && !driftActive) speakText(text);
         if (soundFeedback) playSoundCue('chime');
       } else {
         const text = `Hello, ${patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
         setChatMessages(prev => prev.map(m => m.id === 'greet' ? { ...m, text } : m));
-        if (activeTab === 'patient') speakText(text);
+        if (activeTab === 'patient' && !driftActive) speakText(text);
         if (soundFeedback) playSoundCue('pop');
       }
     }
@@ -451,7 +504,7 @@ function AppContent() {
   }
 
   useEffect(() => {
-    if (activeTab !== 'patient' || !driftEnabled) return;
+    if (activeTab !== 'patient' || !driftEnabled || driftActive) return;
     if (isTyping) return;
     // Wait for Beth's voice to actually finish before starting the drift
     // countdown — otherwise the timer runs out while she's still talking.
@@ -1122,6 +1175,18 @@ function AppContent() {
             </div>
           )}
 
+          {/* Drift Mode button — patient side */}
+          {activeTab === 'patient' && (
+            <button
+              id="btn-drift"
+              onClick={() => setDriftActive(true)}
+              className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-indigo-500 hover:border-indigo-200 transition-all"
+              title="Drift Mode — gentle visual escape"
+            >
+              <Sparkles className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Log out — returns to the role-selection/login screen. Confirmed
               first so a patient can't accidentally end their own session. */}
           <button
@@ -1141,6 +1206,11 @@ function AppContent() {
           </button>
         </div>
       </header>
+
+      {/* Drift Mode full-screen overlay — rendered above everything */}
+      {driftActive && (
+        <DriftScreen onExit={() => setDriftActive(false)} />
+      )}
 
       {/* Main Content Stage */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
@@ -1229,7 +1299,7 @@ function AppContent() {
                       }`}
                       title={soundFeedback ? "Mute sound triggers" : "Enable sound triggers"}
                     >
-                      <Sparkles className="w-6 h-6" />
+                      <Music2 className="w-6 h-6" />
                     </button>
                   </div>
                 </div>
@@ -1647,6 +1717,24 @@ function AppContent() {
 
                 {/* Persona & Drift Controls */}
                 <div className="lg:col-span-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Drift Mode — caregiver trigger */}
+                  <button
+                    type="button"
+                    id="btn-caregiver-drift"
+                    onClick={() => setDriftActive(true)}
+                    className="p-4 rounded-2xl border border-indigo-200 bg-indigo-50 text-left flex items-start space-x-3 hover:bg-indigo-100 active:scale-[0.98] transition-all duration-300"
+                  >
+                    <div className="p-2 rounded-xl bg-white text-indigo-500 shadow-xs shrink-0">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-sm block font-bold text-indigo-700">Drift Mode</span>
+                      <span className="text-[11px] font-normal leading-tight block mt-0.5 text-indigo-500">
+                        Opens a soothing aurora screen on both devices. Tap anywhere to return.
+                      </span>
+                    </div>
+                  </button>
+
                   {/* Persona Configuration */}
                   <div className="p-4 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl flex flex-col justify-between space-y-3">
                     <div>
