@@ -769,6 +769,17 @@ function AppContent() {
 
     setIsSpeaking(true);
 
+    // Voice is a Yadira Premium feature. Free circles still hear a talking
+    // companion — just the device's built-in voice, not the natural (and
+    // per-call paid) Inworld voice. If a subscription ever lapses this is the
+    // same graceful path: the companion never goes silent, it just softens
+    // back to the browser voice. The custom voice config is never discarded,
+    // so re-subscribing restores the exact voice a family designed.
+    if (!isPremium) {
+      fallbackSpeechSynthesis(cleanedText);
+      return;
+    }
+
     // First try Inworld proxy endpoint (authenticated fetch), then fall back to browser TTS.
     void (async () => {
       try {
@@ -1859,8 +1870,8 @@ function AppContent() {
                         </span>
                         <span className="text-[10px] text-[#7E7D76] leading-tight mt-1 block">
                           {isPremium
-                            ? 'Active — all calming rooms and premium features are unlocked for this family.'
-                            : 'Unlocks Rainy Window, Autumn Leaves, Forest Canopy, and more.'}
+                            ? `Active — ${representedPersona || 'the'} natural voice, all calming rooms, and premium features are unlocked for this family.`
+                            : `Unlocks ${representedPersona || 'the loved one'}'s natural voice, the Rainy Window / Autumn Leaves / Forest Canopy rooms, and more. Free companion uses the device voice.`}
                         </span>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
