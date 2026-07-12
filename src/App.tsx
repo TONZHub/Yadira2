@@ -32,8 +32,9 @@ import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, Se
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { getCircleId } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy } from './components';
 import type { FamilyPackApply } from './components';
+import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
@@ -310,6 +311,16 @@ function AppContent() {
     };
   }, []);
 
+  // ---- Yadira Premium (gates the extra calming rooms + paid features) ----
+  // Persisted per circle so both the caregiver's and patient's devices agree.
+  // Stripe checkout will flip `unlocked` here; for now a caregiver toggles it.
+  const [premium, setPremium] = useStoreDoc<{ unlocked: boolean }>('premium', { unlocked: false });
+  const isPremium = !!premium.unlocked;
+
+  // Calming rooms — Aurora (free) plus the premium sensory rooms.
+  const [showRoomsMenu, setShowRoomsMenu] = useState(false);
+  const [premiumRoom, setPremiumRoom] = useState<RoomId | null>(null);
+
   // ---- Aurora (intentional visual dissociation screen) ----
   const [auroraActive, setAuroraActiveState] = useState(false);
 
@@ -332,6 +343,22 @@ function AppContent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active, circle: getCircleId() }),
     }).catch((err) => console.warn('[Yadira] aurora push failed', err));
+  };
+
+  // Launch a room from the picker. Aurora keeps its cross-device beam; the
+  // premium rooms open locally on the device that chose them.
+  const openRoom = (id: RoomId) => {
+    setShowRoomsMenu(false);
+    if (id === 'aurora') {
+      setAuroraActive(true);
+      return;
+    }
+    if (!isPremium) return; // menu already gates, belt-and-suspenders
+    // Quiet Yadira's voice against the calm, same as Aurora does.
+    if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current = null; }
+    try { window.speechSynthesis.cancel(); } catch (_) {}
+    setIsSpeaking(false);
+    setPremiumRoom(id);
   };
 
   useEffect(() => {
@@ -1234,13 +1261,13 @@ function AppContent() {
             </div>
           )}
 
-          {/* Aurora button — patient side */}
+          {/* Calming rooms button — patient side */}
           {activeTab === 'patient' && (
             <button
               id="btn-aurora"
-              onClick={() => setAuroraActive(true)}
+              onClick={() => setShowRoomsMenu(true)}
               className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-indigo-500 hover:border-indigo-200 transition-all"
-              title="Aurora — a gentle visual escape"
+              title="Calming rooms — a gentle place to rest"
             >
               <Sparkles className="w-5 h-5" />
             </button>
@@ -1266,10 +1293,24 @@ function AppContent() {
         </div>
       </header>
 
+      {/* Calming rooms picker */}
+      {showRoomsMenu && (
+        <SensoryRoomsMenu
+          isPremium={isPremium}
+          onSelect={openRoom}
+          onClose={() => setShowRoomsMenu(false)}
+        />
+      )}
+
       {/* Aurora full-screen overlay — rendered above everything */}
       {auroraActive && (
         <AuroraScreen onExit={() => setAuroraActive(false)} />
       )}
+
+      {/* Premium sensory rooms */}
+      {premiumRoom === 'rain' && <RainyWindow onExit={() => setPremiumRoom(null)} />}
+      {premiumRoom === 'leaves' && <AutumnLeaves onExit={() => setPremiumRoom(null)} />}
+      {premiumRoom === 'canopy' && <ForestCanopy onExit={() => setPremiumRoom(null)} />}
 
       {/* Main Content Stage */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
@@ -1808,6 +1849,38 @@ function AppContent() {
                       </span>
                     </div>
                   </button>
+
+                  {/* Yadira Premium — gates the extra calming rooms & paid features */}
+                  <div className={`p-4 rounded-2xl border flex flex-col justify-between ${isPremium ? 'border-[#CEDFCF] bg-[#F2FAF4]' : 'border-[#E3DFC2] bg-[#FCFAF5]'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-[#2C2C2A] flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Yadira Premium
+                        </span>
+                        <span className="text-[10px] text-[#7E7D76] leading-tight mt-1 block">
+                          {isPremium
+                            ? 'Active — all calming rooms and premium features are unlocked for this family.'
+                            : 'Unlocks Rainy Window, Autumn Leaves, Forest Canopy, and more.'}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
+                        {isPremium ? 'On' : 'Free'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      id="btn-toggle-premium"
+                      onClick={() => setPremium({ unlocked: !isPremium })}
+                      className={`mt-3 w-full py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                        isPremium
+                          ? 'bg-white border border-[#E3DFC2] text-[#5E5D57] hover:bg-[#EAE8DD]'
+                          : 'bg-[#3A5D45] text-white hover:bg-[#2B4633] shadow-xs'
+                      }`}
+                      title="Stripe checkout will connect here"
+                    >
+                      {isPremium ? 'Turn off Premium' : 'Unlock Premium (demo)'}
+                    </button>
+                  </div>
 
                   {/* Persona Configuration */}
                   <div className="p-4 bg-[#FCFAF5] border border-[#E3DFC2] rounded-2xl flex flex-col justify-between space-y-3">
