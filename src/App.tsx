@@ -776,7 +776,11 @@ function AppContent() {
     // back to the browser voice. The custom voice config is never discarded,
     // so re-subscribing restores the exact voice a family designed.
     if (!isPremium) {
-      fallbackSpeechSynthesis(cleanedText);
+      if (isPatientSession) {
+        browserLocalSpeechSynthesis(cleanedText);
+      } else {
+        fallbackSpeechSynthesis(cleanedText);
+      }
       return;
     }
 
@@ -812,13 +816,21 @@ function AppContent() {
 
         audio.addEventListener('error', () => {
           URL.revokeObjectURL(objectUrl);
-          fallbackSpeechSynthesis(cleanedText);
+          if (isPatientSession) {
+            browserLocalSpeechSynthesis(cleanedText);
+          } else {
+            fallbackSpeechSynthesis(cleanedText);
+          }
         });
 
         await audio.play();
       } catch (err) {
         console.warn('[TTS] Inworld backend proxy failed, falling back to browser SpeechSynthesis.', err);
-        fallbackSpeechSynthesis(cleanedText);
+        if (isPatientSession) {
+          browserLocalSpeechSynthesis(cleanedText);
+        } else {
+          fallbackSpeechSynthesis(cleanedText);
+        }
       }
     })();
   };
