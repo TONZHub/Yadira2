@@ -3,7 +3,7 @@ import {
   Brain, 
   Heart, 
   User, 
-  Settings, 
+  Users,
   Plus, 
   Trash, 
   Volume2, 
@@ -32,7 +32,8 @@ import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, Se
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { getCircleId } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup } from './components';
+import type { FamilyPackApply } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
@@ -368,6 +369,9 @@ function AppContent() {
   const [newMemTheme, setNewMemTheme] = useState<'family' | 'nature' | 'retro' | 'home' | 'wedding'>('family');
   const [showMemModal, setShowMemModal] = useState(false);
 
+  // Family setup / onboarding modal
+  const [showFamilySetup, setShowFamilySetup] = useState(false);
+
   // New FAQ State
   const [newFaqQuest, setNewFaqQuest] = useState('');
   const [newFaqAns, setNewFaqAns] = useState('');
@@ -675,6 +679,45 @@ function AppContent() {
     }]);
     lastReflectedCountRef.current = 0;
     toastSuccess('New session started', `${persona} kept everything from the last visit.`);
+  };
+
+  // Load a sample family or a freshly created one into THIS circle. Replaces
+  // the profile and all content, clears the persona file and conversation so
+  // the new family starts clean, and syncs the mode across devices.
+  const applyFamilyPack = (pack: FamilyPackApply, label: string) => {
+    setProfile(pack.profile);
+    setMemories(pack.memories);
+    setFaqs(pack.faqs);
+    setLogs(pack.logs);
+    setRoutine(pack.routine);
+    setPersonaFile(DEFAULT_PERSONA_FILE);
+
+    const p = pack.profile;
+    const greetingText = p.patientMode === 'vivid'
+      ? `Hello, love. It's me, ${p.representedPersona || 'Beth'}. I'm right here with you.`
+      : `Hello, ${p.patientName || 'dear'}! I am Yadira, and I'm sitting right here with you. How is your heart feeling today?`;
+    setChatMessages([{
+      id: 'greet',
+      role: 'model',
+      text: greetingText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
+    lastReflectedCountRef.current = 0;
+
+    // A loaded family is intentional content — don't let the first-login
+    // auto-seed overwrite it on the next mount.
+    localStorage.setItem(`yadira_${getCircleId()}_seeded_demo`, 'true');
+
+    // Keep any separate patient device in step with the new family's mode.
+    localStorage.setItem('yadira_shared_mode', JSON.stringify({ mode: p.patientMode, at: Date.now() }));
+    fetch('/api/shared-mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: p.patientMode, circle: getCircleId() }),
+    }).catch(() => {});
+
+    setShowFamilySetup(false);
+    toastSuccess('Care circle ready', `${label} is loaded and ready.`);
   };
 
   // Text To Speech helper
@@ -1677,20 +1720,13 @@ function AppContent() {
                     </button>
                     
                     <button
-                      onClick={() => {
-                        const nextName = prompt("Patient's Name:", patientName) || patientName;
-                        const nextStage = prompt("Dementia Stage (Mild, Moderate, Severe):", patientStage) || patientStage;
-                        const nextHobbies = prompt("Hobbies & Hobbies:", patientHobbies) || patientHobbies;
-                        const nextCName = prompt("Caregiver Name:", caregiverName) || caregiverName;
-                        setPatientName(nextName);
-                        setPatientStage(nextStage);
-                        setPatientHobbies(nextHobbies);
-                        setCaregiverName(nextCName);
-                      }}
-                      className="p-3 bg-[#FCFAF5] border border-[#E3DFC2] text-[#5E5D57] rounded-xl hover:bg-[#EAE8DD] transition-all"
-                      title="Edit Profile Data"
+                      id="btn-family-setup"
+                      onClick={() => setShowFamilySetup(true)}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-3.5 bg-[#FCFAF5] border border-[#E3DFC2] text-[#5E5D57] rounded-xl hover:bg-[#EAE8DD] transition-all font-bold"
+                      title="Switch families or create a new care circle"
                     >
-                      <Settings className="w-6 h-6" />
+                      <Users className="w-5 h-5" />
+                      <span>Switch / New Family</span>
                     </button>
                   </div>
                 </div>
@@ -2554,6 +2590,10 @@ function AppContent() {
               </div>
 
               {/* Add Memory Modal Dialog */}
+              {showFamilySetup && (
+                <FamilySetup onClose={() => setShowFamilySetup(false)} onApply={applyFamilyPack} />
+              )}
+
               {showMemModal && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
                   <motion.div
