@@ -209,9 +209,16 @@ export default function FamilySetup({ onClose, onApply }: FamilySetupProps) {
                     <span className="text-[11px] leading-tight block mt-0.5">Becomes a specific loved one, and meets them where they are.</span>
                   </button>
                 </div>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Represented loved one">
                     <input value={representedPersona} onChange={(e) => setRepresentedPersona(e.target.value)} placeholder="e.g. Beth (defaults to caregiver)" className={inputCls} />
+                  </Field>
+                  <Field label="Voice">
+                    <select value={representedVoiceId} onChange={(e) => setRepresentedVoiceId(e.target.value)} className={inputCls}>
+                      <option value="Sarah">Sarah (warm female)</option>
+                      <option value="Ashley">Ashley (natural female)</option>
+                      <option value="Dennis">Dennis (calm male)</option>
+                    </select>
                   </Field>
                 </div>
               </div>
