@@ -40,6 +40,7 @@ import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
 import { playMemorySoundscape } from './lib/soundscapes';
 import { ChatMessageSkeleton, MemorySkeleton, RoutineSkeleton, LogSkeleton } from './components/LoadingSkeletons';
+import puter from '@heyputer/puter.js';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -824,6 +825,38 @@ function AppContent() {
   };
 
   const fallbackSpeechSynthesis = (text: string) => {
+    // Try puter.js high-quality cloud TTS first
+    void (async () => {
+      try {
+        const selectedVoice = representedVoiceId || 'Sarah';
+        const isMale = selectedVoice.toLowerCase() === 'dennis';
+        const puterVoice = isMale ? 'onyx' : 'nova';
+
+        const audio = await puter.ai.txt2speech(text, {
+          provider: 'openai',
+          model: 'tts-1',
+          voice: puterVoice,
+        });
+        activeAudioRef.current = audio;
+
+        audio.addEventListener('ended', () => {
+          setIsSpeaking(false);
+        });
+
+        audio.addEventListener('error', () => {
+          // Last resort fallback
+          browserLocalSpeechSynthesis(text);
+        });
+
+        await audio.play();
+      } catch (err) {
+        console.warn('[TTS] puter.js failed, falling back to browser local SpeechSynthesis.', err);
+        browserLocalSpeechSynthesis(text);
+      }
+    })();
+  };
+
+  const browserLocalSpeechSynthesis = (text: string) => {
     try {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.82;
@@ -843,7 +876,7 @@ function AppContent() {
       utterance.onerror = () => setIsSpeaking(false);
       window.speechSynthesis.speak(utterance);
     } catch (e) {
-      console.error('[TTS] SpeechSynthesis fallback error:', e);
+      console.error('[TTS] Local SpeechSynthesis error:', e);
       setIsSpeaking(false);
     }
   };
