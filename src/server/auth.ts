@@ -14,7 +14,9 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
   try {
     // Keep key demo paths resilient even if one browser tab temporarily loses auth state.
     // Mounted under /api, so req.path values are like "/shared-mode" and "/tts".
-    if (req.path === '/shared-mode' || req.path === '/tts') {
+    // /drift-mode carries only a boolean and is polled without auth headers by
+    // both surfaces — without this exemption its cross-device sync silently 401s.
+    if (req.path === '/shared-mode' || req.path === '/tts' || req.path === '/drift-mode') {
       return next();
     }
 
