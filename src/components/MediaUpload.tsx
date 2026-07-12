@@ -1,14 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { Upload, AlertTriangle, X, Loader } from 'lucide-react';
+import { Upload, AlertTriangle, X, Loader, Lock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '../lib/ToastContext';
 
 interface MediaUploadProps {
   onMediaAnalyzed: (insight: { description: string; emotion: string; suggestions: string[] }) => void;
   disabled?: boolean;
+  isPremium?: boolean;
 }
 
-export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disabled = false }) => {
+export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disabled = false, isPremium = true }) => {
   const { error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -139,11 +140,21 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (!isPremium) {
+              toastError('Premium Feature', 'Photo sharing and analysis is gated behind Yadira Premium. Unlock Premium in the Caregiver Hub.');
+              return;
+            }
+            fileInputRef.current?.click();
+          }}
           disabled={disabled || isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+          className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all ${
+            !isPremium
+              ? 'bg-[#A6A27B] hover:bg-[#8F8B68] hover:scale-[1.01]'
+              : 'bg-green-500 hover:bg-green-600 active:scale-[0.98]'
+          } disabled:opacity-50`}
         >
-          {isLoading ? <Loader size={20} className="animate-spin" /> : <Upload size={20} />}
+          {isLoading ? <Loader size={20} className="animate-spin" /> : (!isPremium ? <Lock size={18} /> : <Upload size={20} />)}
           Media
         </button>
 

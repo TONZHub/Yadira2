@@ -25,14 +25,16 @@ import {
   Shield,
   HeartHandshake,
   Music2,
-  LogOut
+  LogOut,
+  Phone,
+  PhoneOff
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { getCircleId } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen } from './components';
 import type { FamilyPackApply } from './components';
 import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -320,6 +322,47 @@ function AppContent() {
   // Calming rooms — Aurora (free) plus the premium sensory rooms.
   const [showRoomsMenu, setShowRoomsMenu] = useState(false);
   const [premiumRoom, setPremiumRoom] = useState<RoomId | null>(null);
+
+  // ---- Call Mode (hands-free premium voice session) ----
+  const [isCallActive, setIsCallActive] = useState(false);
+
+  const handleCallMessage = async (text: string) => {
+    if (!text) {
+      // Call connected: trigger initial greeting
+      const greetingText = patientMode === 'vivid'
+        ? `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm so glad we are speaking on the phone. How are you feeling today?`
+        : `Hello! I am Yadira, and I'm right here on the phone with you. How is your heart feeling today?`;
+
+      const greetMsg: Message = {
+        id: `msg-call-greet-${Date.now()}`,
+        role: 'model',
+        text: greetingText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      appendChatMessage(greetMsg);
+      // Force voice enabled so they can hear it
+      setVoiceEnabled(true);
+      speakTextDirect(greetingText);
+      return;
+    }
+
+    // User spoke something! Send to AI conversation handler
+    await handleSendMessage(text);
+  };
+
+  const endCallMode = () => {
+    setIsCallActive(false);
+    // Stop any active speaking/audio
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) {}
+    setIsSpeaking(false);
+    if (soundFeedback) playSoundCue('pop');
+  };
 
   // ---- Aurora (intentional visual dissociation screen) ----
   const [auroraActive, setAuroraActiveState] = useState(false);
@@ -1323,6 +1366,17 @@ function AppContent() {
       {premiumRoom === 'leaves' && <AutumnLeaves onExit={() => setPremiumRoom(null)} />}
       {premiumRoom === 'canopy' && <ForestCanopy onExit={() => setPremiumRoom(null)} />}
 
+      {/* Call Mode full-screen overlay */}
+      {isCallActive && (
+        <CallScreen
+          representedPersona={representedPersona}
+          isSpeaking={isSpeaking}
+          onUserSpoke={handleCallMessage}
+          onExit={endCallMode}
+          chatMessages={chatMessages}
+        />
+      )}
+
       {/* Main Content Stage */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
         <AnimatePresence mode="wait">
@@ -1553,6 +1607,7 @@ function AppContent() {
                       <VoiceInput
                         onTranscript={(text, emotion) => handleSendMessage(text, emotion)}
                         disabled={isTyping}
+                        isPremium={isPremium}
                       />
                     </div>
                     <div className="flex-1 min-w-0 sm:min-w-[200px]">
@@ -1562,6 +1617,7 @@ function AppContent() {
                           handleSendMessage(msg, undefined, insight);
                         }}
                         disabled={isTyping}
+                        isPremium={isPremium}
                       />
                     </div>
                   </div>
@@ -1578,6 +1634,25 @@ function AppContent() {
                       className="flex-1 px-5 py-4 border border-[#C4C09E] rounded-2xl focus:outline-hidden focus:ring-3 focus:ring-[#5C8D71] focus:border-transparent text-lg md:text-xl font-medium bg-[#FCFAF5] shadow-inner"
                       id="patient-chat-input"
                     />
+                    <button
+                      id="btn-call-mode"
+                      onClick={() => {
+                        if (!isPremium) {
+                          toastError('Premium Feature', 'Hands-free Call Mode is gated behind Yadira Premium. Unlock Premium in the Caregiver Hub.');
+                          return;
+                        }
+                        setIsCallActive(true);
+                        playSoundCue('chime');
+                      }}
+                      className={`w-full sm:w-auto p-4 rounded-2xl font-bold shadow-md transition-all active:scale-95 flex items-center justify-center sm:min-w-[60px] ${
+                        isPremium 
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                          : 'bg-[#A6A27B] hover:bg-[#8F8B68] text-white'
+                      }`}
+                      title={isPremium ? "Start a hands-free Call Mode session" : "Unlock Premium to call"}
+                    >
+                      {isPremium ? <Phone className="w-7 h-7" /> : <Lock className="w-7 h-7" />}
+                    </button>
                     <button
                       id="btn-send-message"
                       onClick={() => handleSendMessage(userInput)}

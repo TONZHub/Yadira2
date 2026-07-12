@@ -11,4 +11,5 @@ export { default as SensoryRoomsMenu } from './SensoryRoomsMenu';
 export { default as RainyWindow } from './sensory/RainyWindow';
 export { default as AutumnLeaves } from './sensory/AutumnLeaves';
 export { default as ForestCanopy } from './sensory/ForestCanopy';
+export { default as CallScreen } from './CallScreen';
 
