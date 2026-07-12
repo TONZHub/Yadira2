@@ -6,9 +6,10 @@ import { useToast } from '../lib/ToastContext';
 interface VoiceInputProps {
   onTranscript: (text: string, emotion?: { emotion: string; confidence: number; tone: string }) => void;
   disabled?: boolean;
+  isPremium?: boolean;
 }
 
-export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled = false }) => {
+export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled = false, isPremium = true }) => {
   const { error: toastError } = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -126,6 +127,11 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
 
     // If we have a transcript, analyze emotion and send
     if (transcript.trim()) {
+      if (!isPremium) {
+        onTranscript(transcript.trim());
+        setTranscript('');
+        return;
+      }
       setIsAnalyzing(true);
       try {
         const token = localStorage.getItem('yadira_token');
