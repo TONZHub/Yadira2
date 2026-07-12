@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-interface DriftScreenProps {
+interface AuroraScreenProps {
   onExit: () => void;
 }
 
@@ -26,7 +26,7 @@ interface Ripple {
   hue: number;
 }
 
-export default function DriftScreen({ onExit }: DriftScreenProps) {
+export default function AuroraScreen({ onExit }: AuroraScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const blobsRef = useRef<AuroraBlob[]>([]);
@@ -92,6 +92,13 @@ export default function DriftScreen({ onExit }: DriftScreenProps) {
 
         blob.pulsePhase += blob.pulseSpeed;
         blob.hue += blob.hueSpeed;
+        // Keep the palette inside the aurora band (teal -> violet). The hue
+        // random-walk is unbounded otherwise and wanders into muddy browns
+        // within a minute or two -- reflect at the edges instead.
+        if (blob.hue < 140 || blob.hue > 280) {
+          blob.hue = Math.max(140, Math.min(280, blob.hue));
+          blob.hueSpeed = -blob.hueSpeed;
+        }
         const pulse = 0.72 + Math.sin(blob.pulsePhase) * 0.28;
         const r = blob.radius * pulse;
 
@@ -244,7 +251,7 @@ export default function DriftScreen({ onExit }: DriftScreenProps) {
             : '0 0 12px rgba(100,140,255,0.15)',
           color: exitHovered ? 'rgba(220,230,255,0.95)' : 'rgba(180,200,255,0.5)',
         }}
-        aria-label="Return from Drift Mode"
+        aria-label="Return from Aurora"
       >
         {/* Soft pulsing dot */}
         <span
