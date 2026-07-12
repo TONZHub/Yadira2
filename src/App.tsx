@@ -31,6 +31,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
+import { getCircleId } from './lib/firebase';
 import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage } from './components';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { ToastProvider, useToast } from './lib/ToastContext';
@@ -209,7 +210,7 @@ function AppContent() {
     fetch('/api/shared-mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: v }),
+      body: JSON.stringify({ mode: v, circle: getCircleId() }),
     }).catch((err) => console.warn('[Yadira] shared-mode push failed', err));
   };
   const setRepresentedPersona = (v: string) => setProfile({ ...profile, representedPersona: v });
@@ -233,13 +234,16 @@ function AppContent() {
   // Seed demo data on first login
   useEffect(() => {
     if (user && !demoSeeded) {
-      const isFirstLogin = localStorage.getItem('yadira_seeded_demo') !== 'true';
+      // Per-circle flag: each new family gets the sample content once, and a
+      // second account on the same browser doesn't inherit the first's flag.
+      const seededKey = `yadira_${getCircleId()}_seeded_demo`;
+      const isFirstLogin = localStorage.getItem(seededKey) !== 'true';
       if (isFirstLogin) {
         setMemories(DEMO_MEMORIES);
         setFaqs(DEMO_FAQS);
         setLogs(DEMO_LOGS);
         setRoutine(DEMO_ROUTINE);
-        localStorage.setItem('yadira_seeded_demo', 'true');
+        localStorage.setItem(seededKey, 'true');
         setDemoSeeded(true);
         if (sessionRole === 'patient') {
           toastSuccess('Welcome back', `${patientName || 'Eleanor'}, you are safe and supported.`);
@@ -287,7 +291,7 @@ function AppContent() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/shared-mode');
+        const res = await fetch(`/api/shared-mode?circle=${encodeURIComponent(getCircleId())}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) applySharedMode(data?.mode);
@@ -325,8 +329,8 @@ function AppContent() {
     fetch('/api/aurora-mode', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active }),
-    }).catch((err) => console.warn('[Yadira] drift-mode push failed', err));
+      body: JSON.stringify({ active, circle: getCircleId() }),
+    }).catch((err) => console.warn('[Yadira] aurora push failed', err));
   };
 
   useEffect(() => {
@@ -342,7 +346,7 @@ function AppContent() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const res = await fetch('/api/aurora-mode');
+        const res = await fetch(`/api/aurora-mode?circle=${encodeURIComponent(getCircleId())}`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (typeof data?.active === 'boolean') setAuroraActiveState(data.active);
