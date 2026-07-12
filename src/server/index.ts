@@ -1109,10 +1109,10 @@ app.post('/api/tts', async (req, res) => {
 
     const requestBody = JSON.stringify({
       text: text as string,
-      voice_id: selectedVoiceId,
-      model_id: 'inworld-tts-1.5-max',
-      audio_config: {
-        audio_encoding: 'MP3'
+      voiceId: selectedVoiceId,
+      modelId: 'inworld-tts-1.5-max',
+      audioConfig: {
+        audioEncoding: 'MP3'
       }
     });
 

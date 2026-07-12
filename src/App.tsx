@@ -27,7 +27,8 @@ import {
   Music2,
   LogOut,
   Phone,
-  PhoneOff
+  PhoneOff,
+  Lock
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
