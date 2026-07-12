@@ -40,7 +40,6 @@ import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
 import { playMemorySoundscape } from './lib/soundscapes';
 import { ChatMessageSkeleton, MemorySkeleton, RoutineSkeleton, LogSkeleton } from './components/LoadingSkeletons';
-import puter from '@heyputer/puter.js';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -828,11 +827,12 @@ function AppContent() {
     // Try puter.js high-quality cloud TTS first
     void (async () => {
       try {
+        const { default: puterModule } = await import('@heyputer/puter.js');
         const selectedVoice = representedVoiceId || 'Sarah';
         const isMale = selectedVoice.toLowerCase() === 'dennis';
         const puterVoice = isMale ? 'onyx' : 'nova';
 
-        const audio = await puter.ai.txt2speech(text, {
+        const audio = await puterModule.ai.txt2speech(text, {
           provider: 'openai',
           model: 'tts-1',
           voice: puterVoice,
