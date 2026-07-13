@@ -79,6 +79,30 @@ STRIPE_SECRET_KEY=sk_test_...
    competition verification (XPRIZE / Hacker Fund) looks at **net** revenue
    and sees refunds line-by-line.
 
+## Free tier vs Premium
+
+| Feature | Free | Premium ($5/week) |
+| --- | --- | --- |
+| Chat companion (Yadira & Vivid persona) | ✓ | ✓ |
+| Aurora calming screen & redirection cues | ✓ | ✓ |
+| Voice | Device voice | Natural Inworld voice |
+| Call Mode (hands-free) | — | ✓ |
+| Sensory rooms | Aurora only | All rooms |
+| Session Memory (persona remembers across visits) | — | ✓ |
+| Memory bank | 5 memories | Unlimited |
+| Photo memories (media upload) | — | ✓ |
+| AI routine generation | 1 / week | Unlimited |
+| AI clinical insights | 1 / week | Unlimited |
+
+The calm-down and safety surfaces (Aurora, redirection) are deliberately
+never paywalled. Existing Session Memory data is kept when a subscription
+lapses and returns on re-subscribe.
+
+Separately from the paywall, the server caps natural-voice synthesis at
+30k characters/day per care circle and 100k/day per IP (the `/api/tts`
+endpoint is auth-exempt, and Inworld bills per character) — hitting the cap
+falls back to the device voice, never silence.
+
 ## Notes
 
 - **Revenue evidence for the XPRIZE**: Dashboard → Reports. Gross volume,
