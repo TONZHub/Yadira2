@@ -316,9 +316,140 @@ function AppContent() {
 
   // ---- Yadira Premium (gates the extra calming rooms + paid features) ----
   // Persisted per circle so both the caregiver's and patient's devices agree.
-  // Stripe checkout will flip `unlocked` here; for now a caregiver toggles it.
-  const [premium, setPremium] = useStoreDoc<{ unlocked: boolean }>('premium', { unlocked: false });
+  // Real Stripe checkout flips `unlocked` (after server-side verification of
+  // the paid session); the demo toggle remains as a fallback only when
+  // STRIPE_SECRET_KEY isn't configured on the server.
+  const [premium, setPremium] = useStoreDoc<{
+    unlocked: boolean;
+    subscriptionId?: string;
+    customerId?: string;
+    currentPeriodEnd?: number; // ms epoch, from Stripe
+  }>('premium', { unlocked: false });
   const isPremium = !!premium.unlocked;
+  const [premiumBusy, setPremiumBusy] = useState(false);
+
+  // Returning from Stripe Checkout: verify the session server-side, then
+  // persist the subscription onto the circle's premium doc. Patient sessions
+  // never see this — Stripe redirects land on the caregiver's device.
+  useEffect(() => {
+    if (isPatientSession) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('premium_session');
+    const canceled = params.get('premium_canceled');
+    if (!sessionId && !canceled) return;
+
+    // Clean the URL immediately so refreshes don't re-run verification.
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (canceled) {
+      toastError('Checkout canceled', 'No charge was made. Premium is still available whenever you are ready.');
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/stripe/verify-session?session_id=${encodeURIComponent(sessionId!)}`, {
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok && data.active) {
+          setPremium({
+            unlocked: true,
+            subscriptionId: data.subscriptionId || undefined,
+            customerId: data.customerId || undefined,
+            currentPeriodEnd: data.currentPeriodEnd || undefined,
+          });
+          toastSuccess('Premium unlocked', 'Thank you! The natural voice, Call Mode, and all calming rooms are now active for your family.');
+        } else {
+          toastError('Payment not confirmed', data.error || 'Stripe has not confirmed this payment yet. If you were charged, contact support.');
+        }
+      } catch {
+        toastError('Verification failed', 'Could not reach the server to confirm your payment. Please refresh to retry.');
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPatientSession]);
+
+  // Renewal / lapse check: once the paid-through date (plus a 3-day retry
+  // grace window) has passed, re-verify the subscription with Stripe and
+  // downgrade if it was canceled. Skipped entirely for demo-toggled premium
+  // (no subscriptionId) and on patient devices.
+  useEffect(() => {
+    if (isPatientSession || !premium.unlocked || !premium.subscriptionId || !premium.currentPeriodEnd) return;
+    const GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+    if (Date.now() < premium.currentPeriodEnd + GRACE_MS) return;
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/stripe/subscription-status?subscription_id=${encodeURIComponent(premium.subscriptionId!)}`,
+          { headers: authHeaders() }
+        );
+        if (!res.ok) return; // network/config hiccup — never downgrade blind
+        const data = await res.json();
+        if (data.active) {
+          setPremium({ ...premium, currentPeriodEnd: data.currentPeriodEnd || premium.currentPeriodEnd });
+        } else {
+          setPremium({ ...premium, unlocked: false });
+          toastError('Premium subscription ended', 'Your Yadira Premium subscription is no longer active. You can re-subscribe any time from the Caregiver Hub.');
+        }
+      } catch {
+        // Best-effort — try again next visit rather than punishing a family
+        // for a flaky connection.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPatientSession, premium.unlocked, premium.subscriptionId, premium.currentPeriodEnd]);
+
+  // "Unlock Premium" → Stripe Checkout. Falls back to the local demo toggle
+  // only when the server reports Stripe isn't configured.
+  const startPremiumCheckout = async () => {
+    setPremiumBusy(true);
+    try {
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ circle: getCircleId() }),
+      });
+      const data = await res.json();
+      if (res.status === 503 && data.error === 'stripe_not_configured') {
+        setPremium({ ...premium, unlocked: true });
+        toastSuccess('Premium unlocked (demo)', 'Stripe is not configured on this server, so Premium was enabled in demo mode.');
+        return;
+      }
+      if (res.ok && data.url) {
+        window.location.assign(data.url); // off to Stripe Checkout
+        return;
+      }
+      toastError('Checkout unavailable', data.error || 'Could not start checkout. Please try again.');
+    } catch {
+      toastError('Checkout unavailable', 'Could not reach the server to start checkout.');
+    } finally {
+      setPremiumBusy(false);
+    }
+  };
+
+  // "Manage subscription" → Stripe's hosted billing portal (cancel, card).
+  const openBillingPortal = async () => {
+    setPremiumBusy(true);
+    try {
+      const res = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ customerId: premium.customerId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      toastError('Billing portal unavailable', data.error || 'Could not open the billing portal.');
+    } catch {
+      toastError('Billing portal unavailable', 'Could not reach the server.');
+    } finally {
+      setPremiumBusy(false);
+    }
+  };
 
   // Calming rooms — Aurora (free) plus the premium sensory rooms.
   const [showRoomsMenu, setShowRoomsMenu] = useState(false);
@@ -1947,7 +2078,7 @@ function AppContent() {
                         <span className="text-[10px] text-[#7E7D76] leading-tight mt-1 block">
                           {isPremium
                             ? `Active — ${representedPersona || 'the'} natural voice, all calming rooms, and premium features are unlocked for this family.`
-                            : `Unlocks ${representedPersona || 'the loved one'}'s natural voice, the Rainy Window / Autumn Leaves / Forest Canopy rooms, and more. Free companion uses the device voice.`}
+                            : `$5/week unlocks ${representedPersona || 'the loved one'}'s natural voice, hands-free Call Mode, the Rainy Window / Autumn Leaves / Forest Canopy rooms, and photo memories. Cancel anytime. Free companion uses the device voice.`}
                         </span>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
@@ -1957,15 +2088,37 @@ function AppContent() {
                     <button
                       type="button"
                       id="btn-toggle-premium"
-                      onClick={() => setPremium({ unlocked: !isPremium })}
-                      className={`mt-3 w-full py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                      disabled={premiumBusy}
+                      onClick={() => {
+                        if (!isPremium) {
+                          startPremiumCheckout();
+                        } else if (premium.customerId) {
+                          openBillingPortal();
+                        } else {
+                          // Demo-toggled premium (no Stripe subscription behind it)
+                          setPremium({ ...premium, unlocked: false });
+                        }
+                      }}
+                      className={`mt-3 w-full py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-60 disabled:pointer-events-none ${
                         isPremium
                           ? 'bg-white border border-[#E3DFC2] text-[#5E5D57] hover:bg-[#EAE8DD]'
                           : 'bg-[#3A5D45] text-white hover:bg-[#2B4633] shadow-xs'
                       }`}
-                      title="Stripe checkout will connect here"
+                      title={
+                        isPremium
+                          ? premium.customerId
+                            ? 'Opens Stripe billing portal to manage or cancel'
+                            : 'Turn off demo Premium'
+                          : 'Secure checkout via Stripe — $5/week, cancel anytime'
+                      }
                     >
-                      {isPremium ? 'Turn off Premium' : 'Unlock Premium (demo)'}
+                      {premiumBusy
+                        ? 'One moment…'
+                        : isPremium
+                          ? premium.customerId
+                            ? 'Manage subscription'
+                            : 'Turn off Premium'
+                          : 'Unlock Premium — $5/week'}
                     </button>
                   </div>
 

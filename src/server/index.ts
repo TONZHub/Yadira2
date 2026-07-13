@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { authMiddleware } from './auth';
+import { registerStripeRoutes } from './stripe';
 
 dotenv.config();
 
@@ -15,6 +16,9 @@ app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 
 // Apply auth middleware to all /api routes
 app.use('/api/', authMiddleware);
+
+// Stripe billing — Yadira Premium checkout, verification, and billing portal.
+registerStripeRoutes(app);
 
 // API Keys
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;
