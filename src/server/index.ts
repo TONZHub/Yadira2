@@ -1091,6 +1091,23 @@ Respond ONLY as valid JSON (no markdown):
   }
 });
 
+// Inworld bills per character and /api/tts is exempt from auth (see auth.ts),
+// so cap synthesis per care circle and per IP each day. Generous for real use
+// (~30k chars ≈ 200+ spoken replies) but bounds what an abusive script can
+// burn. In-memory — resets on deploy/restart, which is fine for protection.
+const TTS_DAILY_CIRCLE_CHARS = 30000;
+const TTS_DAILY_IP_CHARS = 100000; // higher: a care facility NAT is one IP, many families
+const ttsUsage = new Map<string, { day: string; chars: number }>();
+
+function ttsBudgetExceeded(key: string, chars: number, limit: number): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = ttsUsage.get(key);
+  const used = entry && entry.day === today ? entry.chars : 0;
+  if (used + chars > limit) return true;
+  ttsUsage.set(key, { day: today, chars: used + chars });
+  return false;
+}
+
 // Endpoint for Inworld TTS proxying
 app.post('/api/tts', async (req, res) => {
   try {
@@ -1099,6 +1116,16 @@ app.post('/api/tts', async (req, res) => {
 
     if (!text) {
       return res.status(400).json({ error: 'Text query parameter is required' });
+    }
+
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    if (
+      ttsBudgetExceeded(`circle:${circleOf(req)}`, text.length, TTS_DAILY_CIRCLE_CHARS) ||
+      ttsBudgetExceeded(`ip:${ip}`, text.length, TTS_DAILY_IP_CHARS)
+    ) {
+      // 429 → the client's speakText catch falls back to the device voice,
+      // so the companion never goes silent.
+      return res.status(429).json({ error: 'Daily natural-voice allowance reached — using the device voice until tomorrow.' });
     }
 
     if (!inworldApiKey || inworldApiKey === 'MY_INWORLD_API_KEY' || inworldApiKey.trim() === '') {

@@ -326,7 +326,18 @@ function AppContent() {
     currentPeriodEnd?: number; // ms epoch, from Stripe
   }>('premium', { unlocked: false });
   const isPremium = !!premium.unlocked;
+  // Ref mirror for callbacks registered once (visibilitychange reflection,
+  // drift timers) so they never act on a stale premium state.
+  const isPremiumRef = useRef(isPremium);
+  isPremiumRef.current = isPremium;
   const [premiumBusy, setPremiumBusy] = useState(false);
+
+  // Free-tier allowance for the Gemini-powered reports (each generation is a
+  // real API cost): one routine + one insights report per week. Premium is
+  // unlimited. Timestamps persist per circle so a refresh doesn't reset them.
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number }>('aiUsage', {});
+  const FREE_MEMORY_LIMIT = 5;
 
   // Returning from Stripe Checkout: verify the session server-side, then
   // persist the subscription onto the circle's premium doc. Patient sessions
@@ -601,7 +612,7 @@ function AppContent() {
   const buildGreeting = (): Message => {
     const isVividMode = profile?.patientMode === 'vivid';
     const persona = profile?.representedPersona || 'Beth';
-    const thread = personaFile?.threadToPickUp || '';
+    const thread = isPremium ? (personaFile?.threadToPickUp || '') : '';
     const greetingText = isVividMode
       ? thread
         ? `Hello, love. It's me, ${persona}. ${thread}`
@@ -692,7 +703,7 @@ function AppContent() {
     if (prevModeRef.current !== patientMode) {
       prevModeRef.current = patientMode;
       if (patientMode === 'vivid') {
-        const thread = personaFileRef.current?.threadToPickUp || '';
+        const thread = isPremiumRef.current ? (personaFileRef.current?.threadToPickUp || '') : '';
         const text = thread
           ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
           : `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
@@ -746,7 +757,7 @@ function AppContent() {
             patientName,
             representedPersona,
             memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
-            personaFile: personaFileRef.current
+            personaFile: isPremiumRef.current ? personaFileRef.current : undefined
           })
         });
 
@@ -789,6 +800,10 @@ function AppContent() {
   }
 
   const runReflection = async (options: { keepalive?: boolean } = {}): Promise<PersonaFile | null> => {
+    // Session Memory is a Premium feature — on the free tier each visit
+    // starts fresh, so nothing new is distilled into the persona file.
+    // Anything remembered from a past subscription is kept, never discarded.
+    if (!isPremiumRef.current) return null;
     const currentCount = chatMessagesRef.current.filter(m => m.role === 'user').length;
     if (reflectingRef.current) return null;
     if (currentCount - (lastReflectedCountRef.current ?? 0) < 1) return null;
@@ -863,7 +878,10 @@ function AppContent() {
   // The chat resets; the memory doesn't.
   const handleStartFreshSession = async () => {
     const merged = await runReflection();
-    const pf = merged || personaFileRef.current;
+    // Free tier: fresh means fresh — no thread carried into the greeting.
+    const pf = isPremiumRef.current
+      ? (merged || personaFileRef.current)
+      : { ...personaFileRef.current, threadToPickUp: '' };
     const p = profileRef.current;
     const persona = p.representedPersona || 'Beth';
     const greetingText = p.patientMode === 'vivid'
@@ -968,7 +986,8 @@ function AppContent() {
         const response = await fetch('/api/tts', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ text: cleanedText, voiceId: selectedVoice }),
+          // circle keys the server's daily synthesis budget to this family
+          body: JSON.stringify({ text: cleanedText, voiceId: selectedVoice, circle: getCircleId() }),
         });
         if (!response.ok) {
           const details = await response.text();
@@ -1130,12 +1149,13 @@ function AppContent() {
           patientMode,
           representedPersona,
           memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
-          personaFile: personaFileRef.current
+          // Session Memory is premium — free-tier prompts never carry it.
+          personaFile: isPremiumRef.current ? personaFileRef.current : undefined
         })
       });
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error);
       }
@@ -1215,6 +1235,13 @@ function AppContent() {
   const handleAddMemory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemTitle || !newMemDesc) return;
+    if (!isPremium && memories.length >= FREE_MEMORY_LIMIT) {
+      toastError(
+        'Memory bank full',
+        `The free plan holds ${FREE_MEMORY_LIMIT} memories. Yadira Premium ($5/week) removes the limit — every memory matters.`
+      );
+      return;
+    }
 
     const newMem: Memory = {
       id: `mem-${Date.now()}`,
@@ -1293,6 +1320,14 @@ function AppContent() {
 
   // AI-Powered Routine Generation
   const handleGenerateAiRoutine = async () => {
+    if (!isPremium && aiUsage.lastRoutineAt && Date.now() - aiUsage.lastRoutineAt < WEEK_MS) {
+      const daysLeft = Math.ceil((aiUsage.lastRoutineAt + WEEK_MS - Date.now()) / (24 * 60 * 60 * 1000));
+      toastError(
+        'Weekly routine used',
+        `The free plan includes one AI routine per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Yadira Premium ($5/week) generates them without limits.`
+      );
+      return;
+    }
     setLoadingRoutine(true);
     try {
       const response = await apiCall('/api/routine/generate', {
@@ -1323,6 +1358,7 @@ function AppContent() {
         }));
 
         setRoutine(formattedRoutine);
+        setAiUsage({ ...aiUsage, lastRoutineAt: Date.now() });
         alert('AI successfully synthesized a highly personalized cognitive routine! It is now loaded into the patient\'s active schedule.');
       }
     } catch (err: any) {
@@ -1335,6 +1371,14 @@ function AppContent() {
 
   // AI-Powered Clinical Insights Generation
   const handleGenerateInsights = async () => {
+    if (!isPremium && aiUsage.lastInsightsAt && Date.now() - aiUsage.lastInsightsAt < WEEK_MS) {
+      const daysLeft = Math.ceil((aiUsage.lastInsightsAt + WEEK_MS - Date.now()) / (24 * 60 * 60 * 1000));
+      toastError(
+        'Weekly insights used',
+        `The free plan includes one AI insights report per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Yadira Premium ($5/week) has no limits.`
+      );
+      return;
+    }
     setLoadingInsights(true);
     try {
       const response = await apiCall('/api/insights/summarize', {
@@ -1355,6 +1399,7 @@ function AppContent() {
 
       if (data.insights) {
         setAiInsights(data.insights);
+        setAiUsage({ ...aiUsage, lastInsightsAt: Date.now() });
       }
     } catch (err: any) {
       console.error(err);
@@ -2078,7 +2123,7 @@ function AppContent() {
                         <span className="text-[10px] text-[#7E7D76] leading-tight mt-1 block">
                           {isPremium
                             ? `Active — ${representedPersona || 'the'} natural voice, all calming rooms, and premium features are unlocked for this family.`
-                            : `$5/week unlocks ${representedPersona || 'the loved one'}'s natural voice, hands-free Call Mode, the Rainy Window / Autumn Leaves / Forest Canopy rooms, and photo memories. Cancel anytime. Free companion uses the device voice.`}
+                            : `$5/week unlocks ${representedPersona || 'the loved one'}'s natural voice, hands-free Call Mode, Session Memory across visits, all calming rooms, photo memories, an unlimited memory bank, and unlimited AI care reports. Cancel anytime.`}
                         </span>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
@@ -2771,11 +2816,22 @@ function AppContent() {
                 </div>
 
                 <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
-                  Written automatically after every conversation and read before the next one. A disconnection is a pause, not a forgetting —
-                  ask {representedPersona || 'Beth'} if she remembers. She does.
+                  {isPremium
+                    ? <>Written automatically after every conversation and read before the next one. A disconnection is a pause, not a forgetting —
+                      ask {representedPersona || 'Beth'} if she remembers. She does.</>
+                    : <>With Premium, this file is written automatically after every conversation and read before the next one — a disconnection becomes a pause, not a forgetting.</>}
                 </p>
 
-                {personaFile.moments.length === 0 && !personaFile.lastSummary ? (
+                {!isPremium ? (
+                  <div className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl">
+                    <Lock className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
+                    <p className="text-base font-bold text-[#5E5D57]">Session Memory is a Premium feature</p>
+                    <p className="text-xs text-[#8A8981] mt-1 max-w-sm mx-auto">
+                      On the free plan, each visit with {representedPersona || 'Beth'} starts fresh. With Yadira Premium ($5/week), {representedPersona || 'Beth'} remembers what {patientName || 'the patient'} shares — the tomatoes, the blue Ford, the wedding — and carries it into every future session.
+                      {(personaFile.moments.length > 0 || personaFile.lastSummary) && ' Everything already remembered is kept safe and returns the moment you re-subscribe.'}
+                    </p>
+                  </div>
+                ) : personaFile.moments.length === 0 && !personaFile.lastSummary ? (
                   <div className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl">
                     <MessageSquare className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
                     <p className="text-base font-bold text-[#5E5D57]">Nothing remembered yet</p>
