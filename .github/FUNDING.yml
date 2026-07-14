@@ -1,0 +1,16 @@
+# Enables the "Sponsor" button on the Yadira repository.
+#
+# Yadira is free for individual families. Sponsorships and facility
+# partnerships are what keep it that way — so a grieving family never
+# meets a paywall on the sound of someone they love.
+#
+# NOTE: the github: line below only works once you've enrolled in GitHub
+# Sponsors (https://github.com/sponsors — free, needs a bank account for
+# payouts). Until then, leave it commented and the custom link handles it.
+
+# github: [TONZHub]
+
+custom:
+  # Interim: points at the partnership page in this repo. Swap for a hosted
+  # sponsor/checkout page (or a Stripe payment link) once you have one.
+  - "https://github.com/TONZHub/Yadira2/blob/main/SPONSORS.md"
