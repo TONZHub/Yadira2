@@ -702,6 +702,12 @@ function AppContent() {
   const messageLogRef = useRef<HTMLDivElement>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioUnlockedRef = useRef(false);
+  // Monotonic "speak generation". Each speakTextDirect call bumps it; an
+  // async TTS fetch only plays its audio if it's still the latest request.
+  // Without this, two greetings fired close together (e.g. the Lucid startup
+  // greeting and the Vivid greeting after a mode sync) each fetch audio and
+  // then both play at once — "Hello, I'm Yadira" over "Hello, it's me, Beth".
+  const speakGenRef = useRef(0);
   const startupGreetingSpokenRef = useRef(false);
 
   // Unlock browser audio autoplay policy on the first user interaction.
@@ -988,6 +994,10 @@ function AppContent() {
       window.speechSynthesis.cancel();
     } catch (_) {}
 
+    // Claim this as the newest speak request; any in-flight older fetch below
+    // will see a bumped generation and bail instead of playing over us.
+    const myGen = ++speakGenRef.current;
+
     // Clean text by removing markdown asterisks (e.g. *softly*) so they aren't read out literally
     const cleanedText = text.replace(/\*.*?\*/g, '').trim();
     if (!cleanedText) {
@@ -1023,24 +1033,27 @@ function AppContent() {
         }
 
         const audioBlob = await response.blob();
+        // A newer speak started while we were fetching — drop this one so the
+        // two don't play simultaneously.
+        if (speakGenRef.current !== myGen) return;
         const objectUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(objectUrl);
         activeAudioRef.current = audio;
 
         audio.addEventListener('ended', () => {
           URL.revokeObjectURL(objectUrl);
-          setIsSpeaking(false);
+          if (speakGenRef.current === myGen) setIsSpeaking(false);
         });
 
         audio.addEventListener('error', () => {
           URL.revokeObjectURL(objectUrl);
-          fallbackSpeechSynthesis(cleanedText);
+          if (speakGenRef.current === myGen) fallbackSpeechSynthesis(cleanedText);
         });
 
         await audio.play();
       } catch (err) {
         console.warn('[TTS] Inworld backend proxy failed, falling back to browser SpeechSynthesis.', err);
-        fallbackSpeechSynthesis(cleanedText);
+        if (speakGenRef.current === myGen) fallbackSpeechSynthesis(cleanedText);
       }
     })();
   };
