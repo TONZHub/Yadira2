@@ -1477,7 +1477,7 @@ function AppContent() {
             src="/yadira-logo.png"
             alt="Yadira"
             id="app-logo-icon"
-            className="h-8 sm:h-9 w-auto"
+            className="h-6 sm:h-7 w-auto"
           />
           <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
             XPRIZE Dementia Companion
