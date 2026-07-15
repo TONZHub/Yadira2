@@ -339,7 +339,14 @@ function AppContent() {
   // Pro / facility partners are unlimited. Timestamps persist per circle so a
   // refresh doesn't reset them.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-  const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number }>('aiUsage', {});
+  const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number; caregiverChatCount?: number }>('aiUsage', {});
+
+  // ---- Ask Yadira: the caregiver's co-pilot chat (Caregiver Pro tooling) ----
+  const CAREGIVER_CHAT_FREE_LIMIT = 5;
+  const [caregiverChat, setCaregiverChat] = useStoreList<Message>('caregiverChat', []);
+  const [caregiverInput, setCaregiverInput] = useState('');
+  const [caregiverTyping, setCaregiverTyping] = useState(false);
+  const caregiverLogRef = useRef<HTMLDivElement>(null);
 
   // Returning from Stripe Checkout: verify the session server-side, then
   // persist the subscription onto the circle's premium doc. Patient sessions
@@ -1445,6 +1452,62 @@ function AppContent() {
     }
   };
 
+  // ---- Ask Yadira: caregiver co-pilot send handler ----
+  const handleCaregiverSend = async (text: string) => {
+    const content = text.trim();
+    if (!content || caregiverTyping) return;
+    const used = aiUsage.caregiverChatCount || 0;
+    if (!isPremium && used >= CAREGIVER_CHAT_FREE_LIMIT) {
+      toastError(
+        'Free trial used up',
+        `You've used your ${CAREGIVER_CHAT_FREE_LIMIT} free Ask Yadira messages. Caregiver Pro ($5/week) unlocks unlimited caregiver chat.`
+      );
+      return;
+    }
+
+    const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userMsg: Message = { id: `cg-${Date.now()}`, role: 'user', text: content, timestamp: now() };
+    setCaregiverChat(prev => [...prev, userMsg].slice(-40));
+    setCaregiverInput('');
+    setCaregiverTyping(true);
+
+    try {
+      const response = await apiCall('/api/caregiver/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: content,
+          history: caregiverChat.slice(-8).map(m => ({ role: m.role, text: m.text })),
+          patientProfile: { name: patientName, stage: patientStage, hobbies: patientHobbies },
+          memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
+          dailyLogs: logs,
+          moodCheckIns: checkins,
+          personaFile: personaFileRef.current,
+          faqs,
+          routine,
+          representedPersona,
+          patientMode,
+        }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      const reply: Message = { id: `cg-${Date.now() + 1}`, role: 'model', text: data.reply, timestamp: now() };
+      setCaregiverChat(prev => [...prev, reply].slice(-40));
+      if (!isPremium) setAiUsage({ ...aiUsage, caregiverChatCount: used + 1 });
+    } catch (err) {
+      // apiCall already surfaces a network-error toast.
+      console.error('Caregiver chat error:', err);
+    } finally {
+      setCaregiverTyping(false);
+    }
+  };
+
+  // Keep the Ask Yadira log scrolled to the newest message.
+  useEffect(() => {
+    const el = caregiverLogRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [caregiverChat, caregiverTyping]);
+
   // Custom SVG theme icons for memory books
   const getThemeGradient = (theme: string) => {
     switch (theme) {
@@ -2094,6 +2157,99 @@ function AppContent() {
                 </div>
               </div>
  
+              {/* Ask Yadira — the caregiver's co-pilot */}
+              <div className="bg-white rounded-3xl border border-[#E3DFC2] shadow-sm overflow-hidden">
+                <div className="p-5 sm:p-6 border-b border-[#EFECDD] flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-[#E8F1EB] text-[#3A5D45] shrink-0">
+                      <MessageSquare className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-[#2C2C2A] flex items-center gap-2">
+                        Ask Yadira about {patientName || 'your loved one'}
+                        <Sparkles className="w-4 h-4 text-indigo-500" />
+                      </h3>
+                      <p className="text-xs text-[#7E7D76] mt-0.5 leading-relaxed max-w-lg">
+                        Your private co-pilot. Ask about {patientName || 'her'}'s patterns, what to do in hard moments, or what {representedPersona || 'Beth'} remembers.
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
+                    {isPremium ? 'Pro' : `${Math.max(0, CAREGIVER_CHAT_FREE_LIMIT - (aiUsage.caregiverChatCount || 0))} free left`}
+                  </span>
+                </div>
+
+                <div ref={caregiverLogRef} className="px-5 sm:px-6 py-4 space-y-3 overflow-y-auto min-h-[180px] max-h-[360px]">
+                  {caregiverChat.length === 0 ? (
+                    <div className="py-4">
+                      <p className="text-sm text-[#5E5D57] mb-3">Not sure where to start? Try:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          `How has ${patientName || 'she'} been sleeping?`,
+                          `What should I do when ${patientName || 'she'} asks for someone who has passed?`,
+                          `What does ${representedPersona || 'Beth'} remember about ${patientName || 'her'}?`,
+                          `A few ways to connect with ${patientName || 'her'} today?`,
+                        ].map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleCaregiverSend(s)}
+                            className="text-left text-xs font-medium px-3 py-2 rounded-xl border border-[#E3DFC2] bg-[#FCFAF5] text-[#3A5D45] hover:bg-[#F2FAF4] hover:border-[#CEDFCF] transition-all"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    caregiverChat.map(msg => (
+                      <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-[#3A5D45] text-white' : 'bg-[#F4F1EA] text-[#2C2C2A] border border-[#E3DFC2]'}`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {caregiverTyping && (
+                    <div className="flex justify-start">
+                      <div className="px-4 py-2.5 rounded-2xl bg-[#F4F1EA] border border-[#E3DFC2] text-[#7E7D76] text-sm flex items-center gap-2">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Yadira is thinking…
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 sm:p-5 border-t border-[#EFECDD] bg-[#FCFAF5]">
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); handleCaregiverSend(caregiverInput); }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={caregiverInput}
+                      onChange={(e) => setCaregiverInput(e.target.value)}
+                      disabled={caregiverTyping}
+                      placeholder={`Ask about ${patientName || 'your loved one'}…`}
+                      className="flex-1 px-4 py-3 rounded-xl border border-[#C4C09E] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#5C8D71] disabled:opacity-60"
+                    />
+                    <button
+                      type="submit"
+                      disabled={caregiverTyping || !caregiverInput.trim()}
+                      className="p-3 rounded-xl bg-[#3A5D45] text-white hover:bg-[#2B4633] transition-all disabled:opacity-40 shrink-0"
+                      aria-label="Send"
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </form>
+                  {!isPremium && (aiUsage.caregiverChatCount || 0) >= CAREGIVER_CHAT_FREE_LIMIT && (
+                    <p className="text-[11px] text-[#7E7D76] mt-2">
+                      You've used your free messages. <span className="font-semibold text-[#3A5D45]">Caregiver Pro ($5/week)</span> unlocks unlimited caregiver chat.
+                    </p>
+                  )}
+                  <p className="text-[10px] text-[#A6A27B] mt-2">Yadira can be wrong and isn't a doctor — for medical decisions, contact your clinician.</p>
+                </div>
+              </div>
+
               {/* Clinical Session Control & Mode Settings */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Mode Control (Lucid vs Vivid) */}
