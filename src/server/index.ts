@@ -134,6 +134,27 @@ async function geminiGenerateJson(
   return JSON.parse(text);
 }
 
+// Free-form (non-JSON) Gemini text — used by the caregiver assistant, whose
+// replies are prose rather than a structured schema.
+async function geminiGenerateText(
+  systemInstruction: string,
+  prompt: string
+): Promise<string> {
+  if (!genAI) {
+    throw new Error('GEMINI_API_KEY is not configured.');
+  }
+  const response = await genAI.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+    config: { systemInstruction },
+  });
+  const text = response.text;
+  if (!text) {
+    throw new Error('Gemini returned an empty response.');
+  }
+  return text.trim();
+}
+
 // OpenRouter OpenAI-compatible chat helper
 async function openRouterChat(
   systemPrompt: string,
@@ -770,6 +791,132 @@ Structure your advice in JSON format with the following keys:
   } catch (err: any) {
     console.error('Error summarizing insights:', err);
     res.status(500).json({ error: err.message || 'Failed to generate clinical caregiver insights' });
+  }
+});
+
+// ---- Caregiver assistant ("Ask Yadira") ------------------------------------
+// A co-pilot for the family caregiver. Unlike the patient-facing companion
+// (warm validation therapy, on OpenRouter), this is an advisory voice grounded
+// in THIS patient's data — logs, memories, persona file, mood check-ins — so it
+// runs on Gemini. The caregiver can ask about the patient (patterns, what to do
+// in hard moments) or about the represented persona (what the companion knows
+// and portrays in Vivid mode).
+
+function summarizeCaregiverContext(body: any): string {
+  const { patientProfile, memories, dailyLogs, moodCheckIns, personaFile, faqs, routine, representedPersona, patientMode } = body || {};
+  const name = patientProfile?.name || 'the patient';
+  const persona = representedPersona || 'Beth';
+  const lines: string[] = [];
+
+  lines.push(`PATIENT: ${name}${patientProfile?.stage ? ` (dementia stage: ${patientProfile.stage})` : ''}.`);
+  if (patientProfile?.hobbies) lines.push(`Interests: ${patientProfile.hobbies}.`);
+  lines.push(`Companion mode is currently ${patientMode === 'vivid' ? `VIVID — the companion speaks as ${persona}, a loved one` : 'LUCID — the companion is Yadira, her own gentle presence'}.`);
+
+  const logs = Array.isArray(dailyLogs) ? dailyLogs.filter((l: any) => l) : [];
+  if (logs.length) {
+    const num = (arr: any[], key: string) => {
+      const v = arr.filter((l) => typeof l[key] === 'number');
+      return v.length ? (v.reduce((s, l) => s + l[key], 0) / v.length).toFixed(1) : 'n/a';
+    };
+    const recentMoods = logs.slice(-7).map((l: any) => l.mood).filter(Boolean).join(', ') || 'n/a';
+    lines.push(`CLINICAL LOGS (${logs.length} days): avg sleep ${num(logs, 'sleepHours')}h, avg hydration ${num(logs, 'hydrationCups')} cups, avg confusion ${num(logs, 'confusionLevel')}/5. Recent charted moods: ${recentMoods}.`);
+  } else {
+    lines.push('CLINICAL LOGS: none recorded yet.');
+  }
+
+  const checks = Array.isArray(moodCheckIns) ? moodCheckIns.slice(-7) : [];
+  if (checks.length) {
+    lines.push(`PATIENT SELF-REPORTED MOODS (their own camp check-ins): ${checks.map((c: any) => `${c.date}:${c.mood}`).join(', ')}.`);
+  }
+
+  if (Array.isArray(memories) && memories.length) {
+    lines.push(`TREASURED MEMORIES the companion can draw on: ${memories.slice(0, 10).map((m: any) => m.title).filter(Boolean).join('; ')}.`);
+  }
+
+  if (personaFile) {
+    if (personaFile.lastSummary) lines.push(`SESSION MEMORY — last visit: ${personaFile.lastSummary}`);
+    if (Array.isArray(personaFile.recurringThreads) && personaFile.recurringThreads.length) {
+      lines.push(`Topics ${name} keeps returning to: ${personaFile.recurringThreads.slice(0, 6).join('; ')}.`);
+    }
+    if (Array.isArray(personaFile.moments) && personaFile.moments.length) {
+      lines.push(`Recent things ${name} shared: ${personaFile.moments.slice(0, 6).map((m: any) => m.summary).filter(Boolean).join('; ')}.`);
+    }
+  }
+
+  if (Array.isArray(faqs) && faqs.length) {
+    lines.push(`CAREGIVER-DEFINED ANSWERS the companion uses: ${faqs.slice(0, 8).map((f: any) => `"${f.question}" -> "${f.answer}"`).join('; ')}.`);
+  }
+
+  if (Array.isArray(routine) && routine.length) {
+    lines.push(`DAILY ROUTINE: ${routine.slice(0, 8).map((r: any) => `${r.time} ${r.title}`).join('; ')}.`);
+  }
+
+  return lines.join('\n');
+}
+
+function getSimulatedCaregiverReply(message: string, body: any): string {
+  const name = body?.patientProfile?.name || 'your loved one';
+  const persona = body?.representedPersona || 'Beth';
+  const logs = Array.isArray(body?.dailyLogs) ? body.dailyLogs.filter((l: any) => l) : [];
+  const msg = (message || '').toLowerCase();
+
+  const avg = (key: string) => {
+    const v = logs.filter((l: any) => typeof l[key] === 'number');
+    return v.length ? (v.reduce((s: number, l: any) => s + l[key], 0) / v.length).toFixed(1) : null;
+  };
+
+  if (/sleep|rest|tired|night/.test(msg)) {
+    const s = avg('sleepHours');
+    return s
+      ? `Over the last ${logs.length} logged days, ${name} has averaged about ${s} hours of sleep. If that dips below ~6.5 hours you'll often see more next-day confusion and late-afternoon restlessness — a calm, dim wind-down routine and limiting fluids before bed tend to help. (This is a simulated reply — add a Gemini API key for fuller, data-grounded answers.)`
+      : `I don't have sleep logs for ${name} yet. Once you chart a few nights in the Daily Care Log, I can spot patterns between rest and next-day confusion. (Simulated reply — add a Gemini API key for fuller answers.)`;
+  }
+  if (/mother|father|mom|dad|husband|wife|home|leave|asks for|looking for/.test(msg)) {
+    return `When ${name} reaches for someone or somewhere from the past, the gentlest path is validation, not correction: meet the feeling ("You really love your mother, don't you?") and redirect to something warm and present rather than saying they've passed. In Vivid mode the companion can step in as ${persona} to hold that moment. (Simulated reply — add a Gemini API key for answers grounded in ${name}'s specific history.)`;
+  }
+  if (new RegExp(persona.toLowerCase()).test(msg) || /persona|remember|companion|vivid/.test(msg)) {
+    const pf = body?.personaFile;
+    const threads = pf && Array.isArray(pf.recurringThreads) ? pf.recurringThreads.slice(0, 4).join(', ') : '';
+    return `In Vivid mode the companion speaks as ${persona}. It carries a session memory of what ${name} shares — ${threads ? `lately they keep returning to: ${threads}.` : `it will grow as they talk.`} You can shape ${persona} by adding memories and caregiver answers in the Hub. (Simulated reply — add a Gemini API key for fuller answers.)`;
+  }
+  return `I'm here to help you care for ${name} — I can talk through their sleep, mood, and confusion patterns, what to do in hard moments, and what the companion remembers. Ask me something specific and I'll ground it in their records. (This is a simulated reply — add a Gemini API key on the server for full, data-grounded guidance.)`;
+}
+
+app.post('/api/caregiver/chat', async (req, res) => {
+  const { message, history } = req.body || {};
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  const name = req.body?.patientProfile?.name || 'the patient';
+
+  try {
+    if (isGeminiKeyMissing) {
+      return res.json({ reply: getSimulatedCaregiverReply(message, req.body) });
+    }
+
+    const system = `You are Yadira, an AI assistant supporting the FAMILY CAREGIVER of ${name}, who is living with dementia. You are NOT talking to the patient — you are the caregiver's knowledgeable, warm co-pilot.
+
+Your job: help the caregiver understand and care for ${name}. Draw ONLY on the context provided about this specific person. You can:
+- explain patterns in their sleep, hydration, mood, and confusion, and what tends to drive good vs hard days (e.g. sundowning);
+- coach validation-therapy approaches for hard moments (never correct or argue the patient out of their reality — meet the feeling and gently redirect);
+- explain what the companion knows and remembers (the session memory / persona file), and how to shape the represented persona;
+- suggest conversation topics and activities grounded in their memories and interests.
+
+Style: warm, plain, practical, and skimmable. Prefer short paragraphs or a few bullet points. Be specific to ${name} using the data; if the data is thin, say so and suggest what to log. You are supportive of the caregiver, who is often exhausted.
+
+Safety: you are not a doctor. For medication, diagnosis, dosing, or a medical emergency, advise them to contact their clinician or emergency services — do not give medical directives.`;
+
+    const historyText = Array.isArray(history)
+      ? history.slice(-8).map((t: any) => `${t.role === 'user' ? 'Caregiver' : 'Yadira'}: ${t.text}`).join('\n')
+      : '';
+
+    const prompt = `CONTEXT ABOUT ${name.toUpperCase()}:\n${summarizeCaregiverContext(req.body)}\n\n${historyText ? `CONVERSATION SO FAR:\n${historyText}\n\n` : ''}The caregiver now asks:\n"${message}"\n\nAnswer them directly and helpfully, grounded in the context above.`;
+
+    const reply = await geminiGenerateText(system, prompt);
+    res.json({ reply });
+  } catch (err: any) {
+    console.warn('[Yadira Backend] Caregiver chat failed (falling back to simulation):', err.message || err);
+    res.json({ reply: getSimulatedCaregiverReply(message, req.body), fallbackTriggered: true });
   }
 });
 
