@@ -79,29 +79,37 @@ STRIPE_SECRET_KEY=sk_test_...
    competition verification (XPRIZE / Hacker Fund) looks at **net** revenue
    and sees refunds line-by-line.
 
-## Free tier vs Premium
+## The model: free for families, paid by caregivers & institutions
 
-| Feature | Free | Premium ($5/week) |
-| --- | --- | --- |
-| Chat companion (Yadira & Vivid persona) | ✓ | ✓ |
-| Aurora calming screen & redirection cues | ✓ | ✓ |
-| Voice | Device voice | Natural Inworld voice |
-| Call Mode (hands-free) | — | ✓ |
-| Sensory rooms | Aurora only | All rooms |
-| Session Memory (persona remembers across visits) | — | ✓ |
-| Memory bank | 5 memories | Unlimited |
-| Photo memories (media upload) | — | ✓ |
-| AI routine generation | 1 / week | Unlimited |
-| AI clinical insights | 1 / week | Unlimited |
+**Yadira is free for families.** The entire patient-facing companion —
+everything the person living with dementia actually experiences — costs the
+family nothing. Revenue comes from the *professional* tooling caregivers use
+and from per-unit facility partnerships (see [SPONSORS.md](SPONSORS.md)).
 
-The calm-down and safety surfaces (Aurora, redirection) are deliberately
-never paywalled. Existing Session Memory data is kept when a subscription
-lapses and returns on re-subscribe.
+| Feature | Family (free) | Caregiver Pro ($5/week) | Facility |
+| --- | --- | --- | --- |
+| Chat companion (Yadira & Vivid persona) | ✓ | ✓ | ✓ |
+| Natural loved-one voice (Inworld) | ✓ | ✓ | ✓ |
+| Hands-free Call Mode | ✓ | ✓ | ✓ |
+| All calming sensory rooms | ✓ | ✓ | ✓ |
+| Session Memory (persona remembers across visits) | ✓ | ✓ | ✓ |
+| Memory bank | Unlimited | Unlimited | Unlimited |
+| Photo memories (media upload) | ✓ | ✓ | ✓ |
+| Aurora & redirection cues | ✓ | ✓ | ✓ |
+| AI routine generation | 1 / week | Unlimited | Unlimited |
+| AI clinical insights | 1 / week | Unlimited | Unlimited |
+| Multi-resident / per-unit deployment | — | — | ✓ (partnership) |
 
-Separately from the paywall, the server caps natural-voice synthesis at
-30k characters/day per care circle and 100k/day per IP (the `/api/tts`
-endpoint is auth-exempt, and Inworld bills per character) — hitting the cap
-falls back to the device voice, never silence.
+Nothing the patient touches is ever paywalled — the natural voice, the
+memory, the reunion are all free. `Caregiver Pro` ($5/week, the Stripe
+subscription this doc sets up) only lifts the weekly limit on the AI care
+reports for an individual caregiver. Facilities pay per-unit so their
+residents' families never see a charge at all.
+
+The server caps natural-voice synthesis at 30k characters/day per care circle
+and 100k/day per IP (the `/api/tts` endpoint is auth-exempt, and Inworld bills
+per character). This is cost protection, not a paywall — hitting the cap falls
+back to the device voice, never silence.
 
 ## Notes
 

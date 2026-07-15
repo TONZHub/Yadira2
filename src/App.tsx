@@ -28,14 +28,14 @@ import {
   LogOut,
   Phone,
   PhoneOff,
-  Lock
+  Tent
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
+import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { getCircleId } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen } from './components';
+import { getCircleId, isFirebaseConfigured } from './lib/firebase';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn } from './components';
 import type { FamilyPackApply } from './components';
 import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -228,6 +228,8 @@ function AppContent() {
   const [faqs, setFaqs] = useStoreList<CustomFAQ>('faqs', INITIAL_FAQS);
   const [logs, setLogs] = useStoreList<DailyLog>('logs', INITIAL_LOGS, 'date');
   const [routine, setRoutine] = useStoreList<RoutineItem>('routine', DEFAULT_ROUTINE);
+  // Patient's daily emotional check-ins with Hattie at camp (keyed by date).
+  const [checkins, setCheckins, checkinsSynced] = useStoreList<MoodCheckIn>('checkins', [], 'date');
 
   // The persona file — session-to-session memory. Written to after every
   // conversation (see runReflection), read into every chat prompt. This is
@@ -314,7 +316,7 @@ function AppContent() {
     };
   }, []);
 
-  // ---- Yadira Premium (gates the extra calming rooms + paid features) ----
+  // ---- Caregiver Pro (paid tier: unlimited AI care reports; companion is free) ----
   // Persisted per circle so both the caregiver's and patient's devices agree.
   // Real Stripe checkout flips `unlocked` (after server-side verification of
   // the paid session); the demo toggle remains as a fallback only when
@@ -326,18 +328,18 @@ function AppContent() {
     currentPeriodEnd?: number; // ms epoch, from Stripe
   }>('premium', { unlocked: false });
   const isPremium = !!premium.unlocked;
-  // Ref mirror for callbacks registered once (visibilitychange reflection,
-  // drift timers) so they never act on a stale premium state.
-  const isPremiumRef = useRef(isPremium);
-  isPremiumRef.current = isPremium;
   const [premiumBusy, setPremiumBusy] = useState(false);
 
-  // Free-tier allowance for the Gemini-powered reports (each generation is a
-  // real API cost): one routine + one insights report per week. Premium is
-  // unlimited. Timestamps persist per circle so a refresh doesn't reset them.
+  // The whole patient-facing companion is free — natural voice, Call Mode,
+  // Session Memory, calming rooms, photos, and an unlimited memory bank. The
+  // families we serve never meet a paywall on the sound of someone they love.
+  // `isPremium` now gates only the caregiver's *professional* tooling: the
+  // Gemini-powered AI care reports, where each generation is a real API cost.
+  // Free caregivers get one routine + one insights report per week; Caregiver
+  // Pro / facility partners are unlimited. Timestamps persist per circle so a
+  // refresh doesn't reset them.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
   const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number }>('aiUsage', {});
-  const FREE_MEMORY_LIMIT = 5;
 
   // Returning from Stripe Checkout: verify the session server-side, then
   // persist the subscription onto the circle's premium doc. Patient sessions
@@ -370,7 +372,7 @@ function AppContent() {
             customerId: data.customerId || undefined,
             currentPeriodEnd: data.currentPeriodEnd || undefined,
           });
-          toastSuccess('Premium unlocked', 'Thank you! The natural voice, Call Mode, and all calming rooms are now active for your family.');
+          toastSuccess('Caregiver Pro active', 'Thank you for sustaining Yadira! Unlimited AI care reports are now unlocked for you.');
         } else {
           toastError('Payment not confirmed', data.error || 'Stripe has not confirmed this payment yet. If you were charged, contact support.');
         }
@@ -402,7 +404,7 @@ function AppContent() {
           setPremium({ ...premium, currentPeriodEnd: data.currentPeriodEnd || premium.currentPeriodEnd });
         } else {
           setPremium({ ...premium, unlocked: false });
-          toastError('Premium subscription ended', 'Your Yadira Premium subscription is no longer active. You can re-subscribe any time from the Caregiver Hub.');
+          toastError('Caregiver Pro ended', 'Your Caregiver Pro subscription is no longer active — the companion stays free for your family. You can re-subscribe any time from the Caregiver Hub.');
         }
       } catch {
         // Best-effort — try again next visit rather than punishing a family
@@ -412,7 +414,7 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPatientSession, premium.unlocked, premium.subscriptionId, premium.currentPeriodEnd]);
 
-  // "Unlock Premium" → Stripe Checkout. Falls back to the local demo toggle
+  // "Get Caregiver Pro" → Stripe Checkout. Falls back to the local demo toggle
   // only when the server reports Stripe isn't configured.
   const startPremiumCheckout = async () => {
     setPremiumBusy(true);
@@ -425,7 +427,7 @@ function AppContent() {
       const data = await res.json();
       if (res.status === 503 && data.error === 'stripe_not_configured') {
         setPremium({ ...premium, unlocked: true });
-        toastSuccess('Premium unlocked (demo)', 'Stripe is not configured on this server, so Premium was enabled in demo mode.');
+        toastSuccess('Caregiver Pro active (demo)', 'Stripe is not configured on this server, so Caregiver Pro was enabled in demo mode.');
         return;
       }
       if (res.ok && data.url) {
@@ -466,7 +468,39 @@ function AppContent() {
   const [showRoomsMenu, setShowRoomsMenu] = useState(false);
   const [premiumRoom, setPremiumRoom] = useState<RoomId | null>(null);
 
-  // ---- Call Mode (hands-free premium voice session) ----
+  // ---- Camp: Hattie's daily check-in (patient-facing) ----
+  // The patient meets Hattie first, taps how they're feeling, then "leaves
+  // camp" to talk with Yadira. The check-in feeds mood + AI insights without
+  // fabricating clinical numbers (see handleCampCheckIn).
+  const todayKey = () =>
+    new Date().toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '-');
+  const todaysCheckIn = checkins.find((c) => c.date === todayKey());
+  const [campOpen, setCampOpen] = useState(false);
+  const campAutoOpenedRef = useRef(false);
+  // Auto-open camp once per patient session/day, only after the store has
+  // loaded (so we don't flash camp at someone who already checked in today).
+  useEffect(() => {
+    if (campAutoOpenedRef.current) return;
+    if (!isPatientSession) return;
+    if (isFirebaseConfigured && !checkinsSynced) return;
+    campAutoOpenedRef.current = true;
+    if (!todaysCheckIn) setCampOpen(true);
+  }, [isPatientSession, checkinsSynced, todaysCheckIn]);
+
+  const handleCampCheckIn = (mood: DailyLog['mood']) => {
+    const date = todayKey();
+    setCheckins((prev) => [...prev.filter((c) => c.date !== date), { date, mood, at: Date.now() }]);
+    // Reflect onto today's clinical log ONLY if the caregiver already made one
+    // — never invent sleep/hydration from a single mood tap.
+    setLogs((prev) =>
+      prev.some((l) => l.date === date) ? prev.map((l) => (l.date === date ? { ...l, mood } : l)) : prev
+    );
+  };
+
+  const moodLabel = (m: DailyLog['mood']) =>
+    ({ peaceful: 'calm & content', anxious: 'a little worried', restless: 'restless', sad: 'missing someone' }[m] || m);
+
+  // ---- Call Mode (hands-free voice session) ----
   const [isCallActive, setIsCallActive] = useState(false);
 
   const handleCallMessage = async (text: string) => {
@@ -539,7 +573,6 @@ function AppContent() {
       setAuroraActive(true);
       return;
     }
-    if (!isPremium) return; // menu already gates, belt-and-suspenders
     // Quiet Yadira's voice against the calm, same as Aurora does.
     if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current = null; }
     try { window.speechSynthesis.cancel(); } catch (_) {}
@@ -592,6 +625,15 @@ function AppContent() {
   // Daily Log Inputs
   const [logConfusion, setLogConfusion] = useState<number>(2);
   const [logMood, setLogMood] = useState<'peaceful' | 'anxious' | 'restless' | 'sad'>('peaceful');
+  // Prefill the caregiver's mood field from the patient's own camp check-in
+  // (once, and only if they haven't already charted a clinical log today).
+  const moodPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (moodPrefilledRef.current || !todaysCheckIn) return;
+    if (logs.some((l) => l.date === todayKey())) return;
+    moodPrefilledRef.current = true;
+    setLogMood(todaysCheckIn.mood);
+  }, [todaysCheckIn, logs]);
   const [logHydration, setLogHydration] = useState<number>(6);
   const [logSleep, setLogSleep] = useState<number>(7.5);
   const [logMeds, setLogMeds] = useState<boolean>(true);
@@ -612,7 +654,7 @@ function AppContent() {
   const buildGreeting = (): Message => {
     const isVividMode = profile?.patientMode === 'vivid';
     const persona = profile?.representedPersona || 'Beth';
-    const thread = isPremium ? (personaFile?.threadToPickUp || '') : '';
+    const thread = personaFile?.threadToPickUp || '';
     const greetingText = isVividMode
       ? thread
         ? `Hello, love. It's me, ${persona}. ${thread}`
@@ -703,7 +745,7 @@ function AppContent() {
     if (prevModeRef.current !== patientMode) {
       prevModeRef.current = patientMode;
       if (patientMode === 'vivid') {
-        const thread = isPremiumRef.current ? (personaFileRef.current?.threadToPickUp || '') : '';
+        const thread = personaFileRef.current?.threadToPickUp || '';
         const text = thread
           ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
           : `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm right here with you.`;
@@ -757,7 +799,7 @@ function AppContent() {
             patientName,
             representedPersona,
             memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
-            personaFile: isPremiumRef.current ? personaFileRef.current : undefined
+            personaFile: personaFileRef.current
           })
         });
 
@@ -800,10 +842,6 @@ function AppContent() {
   }
 
   const runReflection = async (options: { keepalive?: boolean } = {}): Promise<PersonaFile | null> => {
-    // Session Memory is a Premium feature — on the free tier each visit
-    // starts fresh, so nothing new is distilled into the persona file.
-    // Anything remembered from a past subscription is kept, never discarded.
-    if (!isPremiumRef.current) return null;
     const currentCount = chatMessagesRef.current.filter(m => m.role === 'user').length;
     if (reflectingRef.current) return null;
     if (currentCount - (lastReflectedCountRef.current ?? 0) < 1) return null;
@@ -878,10 +916,7 @@ function AppContent() {
   // The chat resets; the memory doesn't.
   const handleStartFreshSession = async () => {
     const merged = await runReflection();
-    // Free tier: fresh means fresh — no thread carried into the greeting.
-    const pf = isPremiumRef.current
-      ? (merged || personaFileRef.current)
-      : { ...personaFileRef.current, threadToPickUp: '' };
+    const pf = merged || personaFileRef.current;
     const p = profileRef.current;
     const persona = p.representedPersona || 'Beth';
     const greetingText = p.patientMode === 'vivid'
@@ -962,17 +997,10 @@ function AppContent() {
 
     setIsSpeaking(true);
 
-    // Voice is a Yadira Premium feature. Free circles still hear a talking
-    // companion — just the device's built-in voice, not the natural (and
-    // per-call paid) Inworld voice. If a subscription ever lapses this is the
-    // same graceful path: the companion never goes silent, it just softens
-    // back to the browser voice. The custom voice config is never discarded,
-    // so re-subscribing restores the exact voice a family designed.
-    if (!isPremium) {
-      fallbackSpeechSynthesis(cleanedText);
-      return;
-    }
-
+    // The natural (Inworld) voice — the reunion, the "oh my god, it's her"
+    // moment — is free for every family. Cost is bounded by the server's daily
+    // per-circle TTS budget: past the cap, /api/tts returns 429 and we fall
+    // back to the device voice below, so the companion never goes silent.
     // First try Inworld proxy endpoint (authenticated fetch), then fall back to browser TTS.
     void (async () => {
       try {
@@ -1149,8 +1177,7 @@ function AppContent() {
           patientMode,
           representedPersona,
           memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
-          // Session Memory is premium — free-tier prompts never carry it.
-          personaFile: isPremiumRef.current ? personaFileRef.current : undefined
+          personaFile: personaFileRef.current
         })
       });
 
@@ -1235,13 +1262,6 @@ function AppContent() {
   const handleAddMemory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemTitle || !newMemDesc) return;
-    if (!isPremium && memories.length >= FREE_MEMORY_LIMIT) {
-      toastError(
-        'Memory bank full',
-        `The free plan holds ${FREE_MEMORY_LIMIT} memories. Yadira Premium ($5/week) removes the limit — every memory matters.`
-      );
-      return;
-    }
 
     const newMem: Memory = {
       id: `mem-${Date.now()}`,
@@ -1324,7 +1344,7 @@ function AppContent() {
       const daysLeft = Math.ceil((aiUsage.lastRoutineAt + WEEK_MS - Date.now()) / (24 * 60 * 60 * 1000));
       toastError(
         'Weekly routine used',
-        `The free plan includes one AI routine per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Yadira Premium ($5/week) generates them without limits.`
+        `The free plan includes one AI routine per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Caregiver Pro ($5/week) generates them without limits.`
       );
       return;
     }
@@ -1375,7 +1395,7 @@ function AppContent() {
       const daysLeft = Math.ceil((aiUsage.lastInsightsAt + WEEK_MS - Date.now()) / (24 * 60 * 60 * 1000));
       toastError(
         'Weekly insights used',
-        `The free plan includes one AI insights report per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Yadira Premium ($5/week) has no limits.`
+        `The free plan includes one AI insights report per week — the next is available in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Caregiver Pro ($5/week) has no limits.`
       );
       return;
     }
@@ -1386,6 +1406,9 @@ function AppContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dailyLogs: logs,
+          // Patient's own daily mood check-ins with Hattie — self-reported
+          // feeling, distinct from the caregiver's clinical charting.
+          moodCheckIns: checkins,
           patientProfile: {
             name: patientName,
             stage: patientStage,
@@ -1492,6 +1515,18 @@ function AppContent() {
             </div>
           )}
 
+          {/* Return to camp — Hattie's check-in, patient side */}
+          {activeTab === 'patient' && (
+            <button
+              id="btn-camp"
+              onClick={() => setCampOpen(true)}
+              className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-[#3A5D45] hover:border-[#CEDFCF] transition-all"
+              title="Visit Hattie at camp"
+            >
+              <Tent className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Calming rooms button — patient side */}
           {activeTab === 'patient' && (
             <button
@@ -1527,7 +1562,7 @@ function AppContent() {
       {/* Calming rooms picker */}
       {showRoomsMenu && (
         <SensoryRoomsMenu
-          isPremium={isPremium}
+          isPremium={true}
           onSelect={openRoom}
           onClose={() => setShowRoomsMenu(false)}
         />
@@ -1553,6 +1588,20 @@ function AppContent() {
           chatMessages={chatMessages}
         />
       )}
+
+      {/* Camp — Hattie's daily check-in, shown before the patient reaches chat */}
+      <AnimatePresence>
+        {campOpen && (
+          <CampCheckIn
+            key="camp"
+            patientName={patientName}
+            personaLabel={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
+            todaysMood={todaysCheckIn?.mood ?? null}
+            onCheckIn={handleCampCheckIn}
+            onLeave={() => setCampOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Main Content Stage */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
@@ -1784,7 +1833,7 @@ function AppContent() {
                       <VoiceInput
                         onTranscript={(text, emotion) => handleSendMessage(text, emotion)}
                         disabled={isTyping}
-                        isPremium={isPremium}
+                        isPremium={true}
                       />
                     </div>
                     <div className="flex-1 min-w-0 sm:min-w-[200px]">
@@ -1794,7 +1843,7 @@ function AppContent() {
                           handleSendMessage(msg, undefined, insight);
                         }}
                         disabled={isTyping}
-                        isPremium={isPremium}
+                        isPremium={true}
                       />
                     </div>
                   </div>
@@ -1814,21 +1863,13 @@ function AppContent() {
                     <button
                       id="btn-call-mode"
                       onClick={() => {
-                        if (!isPremium) {
-                          toastError('Premium Feature', 'Hands-free Call Mode is gated behind Yadira Premium. Unlock Premium in the Caregiver Hub.');
-                          return;
-                        }
                         setIsCallActive(true);
                         playSoundCue('chime');
                       }}
-                      className={`w-full sm:w-auto p-4 rounded-2xl font-bold shadow-md transition-all active:scale-95 flex items-center justify-center sm:min-w-[60px] ${
-                        isPremium 
-                          ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                          : 'bg-[#A6A27B] hover:bg-[#8F8B68] text-white'
-                      }`}
-                      title={isPremium ? "Start a hands-free Call Mode session" : "Unlock Premium to call"}
+                      className="w-full sm:w-auto p-4 rounded-2xl font-bold shadow-md transition-all active:scale-95 flex items-center justify-center sm:min-w-[60px] bg-blue-600 hover:bg-blue-700 text-white"
+                      title="Start a hands-free Call Mode session"
                     >
-                      {isPremium ? <Phone className="w-7 h-7" /> : <Lock className="w-7 h-7" />}
+                      <Phone className="w-7 h-7" />
                     </button>
                     <button
                       id="btn-send-message"
@@ -2113,21 +2154,22 @@ function AppContent() {
                     </div>
                   </button>
 
-                  {/* Yadira Premium — gates the extra calming rooms & paid features */}
+                  {/* Caregiver Pro — the whole companion is free; only the
+                      caregiver's AI care reports are the paid tier. */}
                   <div className={`p-4 rounded-2xl border flex flex-col justify-between ${isPremium ? 'border-[#CEDFCF] bg-[#F2FAF4]' : 'border-[#E3DFC2] bg-[#FCFAF5]'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <span className="text-xs font-extrabold uppercase tracking-wider text-[#2C2C2A] flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Yadira Premium
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> Caregiver Pro
                         </span>
                         <span className="text-[10px] text-[#7E7D76] leading-tight mt-1 block">
                           {isPremium
-                            ? `Active — ${representedPersona || 'the'} natural voice, all calming rooms, and premium features are unlocked for this family.`
-                            : `$5/week unlocks ${representedPersona || 'the loved one'}'s natural voice, hands-free Call Mode, Session Memory across visits, all calming rooms, photo memories, an unlimited memory bank, and unlimited AI care reports. Cancel anytime.`}
+                            ? `Active — unlimited AI care reports (routines & clinical insights) for this caregiver. The companion itself is free for your family, always.`
+                            : `The companion is free for your family — ${representedPersona || 'the loved one'}'s natural voice, Call Mode, Session Memory, calming rooms, and photos, always. Caregiver Pro ($5/week) adds unlimited AI care reports; free includes one routine + one insights report each week. Run a care facility? Email partnerships@yadira.app about a per-unit partnership.`}
                         </span>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${isPremium ? 'bg-[#3A5D45] text-white' : 'bg-[#EAE8DD] text-[#7E7D76]'}`}>
-                        {isPremium ? 'On' : 'Free'}
+                        {isPremium ? 'Pro' : 'Free'}
                       </span>
                     </div>
                     <button
@@ -2153,7 +2195,7 @@ function AppContent() {
                         isPremium
                           ? premium.customerId
                             ? 'Opens Stripe billing portal to manage or cancel'
-                            : 'Turn off demo Premium'
+                            : 'Turn off demo Caregiver Pro'
                           : 'Secure checkout via Stripe — $5/week, cancel anytime'
                       }
                     >
@@ -2162,8 +2204,8 @@ function AppContent() {
                         : isPremium
                           ? premium.customerId
                             ? 'Manage subscription'
-                            : 'Turn off Premium'
-                          : 'Unlock Premium — $5/week'}
+                            : 'Turn off Caregiver Pro'
+                          : 'Get Caregiver Pro — $5/week'}
                     </button>
                   </div>
 
@@ -2291,6 +2333,15 @@ function AppContent() {
                     </div>
                     <h3 className="text-xl font-bold text-[#2C2C2A]">Today's Daily Care Log</h3>
                   </div>
+
+                  {todaysCheckIn && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-[#CEDFCF] bg-[#F2FAF4] px-3.5 py-2.5">
+                      <Tent className="w-4 h-4 text-[#3A5D45] shrink-0 mt-0.5" />
+                      <p className="text-xs text-[#3A5D45] leading-snug">
+                        <b>{patientName || 'The patient'}</b> checked in at camp today feeling <b>{moodLabel(todaysCheckIn.mood)}</b>. We’ve pre-filled the mood below — adjust it if your own read differs.
+                      </p>
+                    </div>
+                  )}
 
                   <form onSubmit={handleAddLog} className="space-y-4 flex-1 flex flex-col">
                     
@@ -2816,22 +2867,11 @@ function AppContent() {
                 </div>
 
                 <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
-                  {isPremium
-                    ? <>Written automatically after every conversation and read before the next one. A disconnection is a pause, not a forgetting —
-                      ask {representedPersona || 'Beth'} if she remembers. She does.</>
-                    : <>With Premium, this file is written automatically after every conversation and read before the next one — a disconnection becomes a pause, not a forgetting.</>}
+                  Written automatically after every conversation and read before the next one. A disconnection is a pause, not a forgetting —
+                  ask {representedPersona || 'Beth'} if she remembers. She does.
                 </p>
 
-                {!isPremium ? (
-                  <div className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl">
-                    <Lock className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
-                    <p className="text-base font-bold text-[#5E5D57]">Session Memory is a Premium feature</p>
-                    <p className="text-xs text-[#8A8981] mt-1 max-w-sm mx-auto">
-                      On the free plan, each visit with {representedPersona || 'Beth'} starts fresh. With Yadira Premium ($5/week), {representedPersona || 'Beth'} remembers what {patientName || 'the patient'} shares — the tomatoes, the blue Ford, the wedding — and carries it into every future session.
-                      {(personaFile.moments.length > 0 || personaFile.lastSummary) && ' Everything already remembered is kept safe and returns the moment you re-subscribe.'}
-                    </p>
-                  </div>
-                ) : personaFile.moments.length === 0 && !personaFile.lastSummary ? (
+                {personaFile.moments.length === 0 && !personaFile.lastSummary ? (
                   <div className="p-8 text-center bg-[#FCFAF5] border border-dashed border-[#C4C09E] rounded-2xl">
                     <MessageSquare className="w-10 h-10 text-[#C4C09E] mx-auto mb-2" />
                     <p className="text-base font-bold text-[#5E5D57]">Nothing remembered yet</p>

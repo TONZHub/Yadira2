@@ -110,9 +110,9 @@ export function registerStripeRoutes(app: express.Express) {
         'line_items[0][price_data][currency]': 'usd',
         'line_items[0][price_data][unit_amount]': '500',
         'line_items[0][price_data][recurring][interval]': 'week',
-        'line_items[0][price_data][product_data][name]': 'Yadira Premium',
+        'line_items[0][price_data][product_data][name]': 'Yadira Caregiver Pro',
         'line_items[0][price_data][product_data][description]':
-          "Natural loved-one voice, hands-free Call Mode, all calming sensory rooms, and photo memories — for one family's care circle.",
+          'Unlimited AI care reports — personalized routines and clinical insights. The companion itself stays free for your family; this sustains the professional caregiver tooling.',
         success_url: `${base}/?premium_session={CHECKOUT_SESSION_ID}`,
         cancel_url: `${base}/?premium_canceled=1`,
         'metadata[circleId]': circle,

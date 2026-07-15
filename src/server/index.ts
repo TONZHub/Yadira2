@@ -669,11 +669,16 @@ Please structure a daily schedule with 5-6 key events. For each event, provide:
 // Endpoint for summarizing clinical patient data and logs for caregiver insights
 app.post('/api/insights/summarize', async (req, res) => {
   try {
-    const { dailyLogs, patientProfile } = req.body;
+    const { dailyLogs, patientProfile, moodCheckIns } = req.body;
 
     if (!dailyLogs || !Array.isArray(dailyLogs)) {
       return res.status(400).json({ error: 'Daily logs array is required' });
     }
+
+    // Patient's own daily emotional check-ins (from Hattie at camp). These are
+    // self-reported feelings, kept separate from the caregiver's clinical
+    // charts so they enrich the picture without skewing hydration/sleep stats.
+    const checkIns = Array.isArray(moodCheckIns) ? moodCheckIns : [];
 
     // Mock/Simulated Fallback when Gemini API key is missing
     if (isGeminiKeyMissing) {
@@ -688,7 +693,8 @@ app.post('/api/insights/summarize', async (req, res) => {
         ? (dailyLogs.reduce((sum, l) => sum + (l.hydrationCups || 0), 0) / dailyLogs.length).toFixed(1)
         : '6.0';
       const anxiousDays = dailyLogs.filter(l => l && (l.mood === 'anxious' || l.mood === 'restless')).length;
-      
+      const selfReportedHardDays = checkIns.filter((c: any) => c && (c.mood === 'anxious' || c.mood === 'restless' || c.mood === 'sad')).length;
+
       const patientNameStr = patientProfile?.name || 'the patient';
 
       const clinicalSummary = `Based on the care charts logged over the last ${dailyLogs.length || 7} days, ${patientNameStr} is maintaining relatively stable routines. We noted that ${patientNameStr}'s sleep averaged ${avgSleep} hours, and hydration levels averaged ${avgHydration} cups daily. There appears to be a direct correlation where lower sleep duration (less than 6 hours) is followed by elevated next-day confusion and anxiety (noted on ${anxiousDays} days).`;
@@ -702,6 +708,9 @@ app.post('/api/insights/summarize', async (req, res) => {
       }
       if (anxiousDays > 2) {
         criticalAlerts.push(`Mood fluctuations: ${anxiousDays} days of anxious/restless mood logs suggest potential late-afternoon sundowning triggers in the environment.`);
+      }
+      if (selfReportedHardDays > 2) {
+        criticalAlerts.push(`Self-reported distress: ${patientNameStr} checked in feeling worried, restless, or tender on ${selfReportedHardDays} day(s) at camp with Hattie — worth gently exploring what those days had in common.`);
       }
       if (criticalAlerts.length === 0) {
         criticalAlerts.push('No acute warning trends detected. Keep up the consistent routines!');
@@ -724,6 +733,7 @@ app.post('/api/insights/summarize', async (req, res) => {
 
     const logsString = JSON.stringify(dailyLogs);
     const profileString = JSON.stringify(patientProfile || {});
+    const checkInsString = checkIns.length > 0 ? JSON.stringify(checkIns) : 'None recorded.';
 
     const prompt = `You are an expert clinical advisor specializing in geriatric care, dementia management, and family support.
 Analyze the following historic daily care logs for a patient with dementia, along with their general profile.
@@ -731,8 +741,11 @@ Analyze the following historic daily care logs for a patient with dementia, alon
 PATIENT PROFILE:
 ${profileString}
 
-DAILY CARE LOGS (containing symptoms, confusion level, mood, hydration, and sleep logs):
+DAILY CARE LOGS (caregiver-charted: symptoms, confusion level, mood, hydration, and sleep):
 ${logsString}
+
+PATIENT SELF-REPORTED DAILY MOOD (the patient's own one-tap check-ins with the Hattie companion, by date — this is how THEY say they felt, which may differ from the caregiver's observation; compare the two where useful):
+${checkInsString}
 
 Provide a concise, highly clinical yet empathetic summary and optimization plan for the family caregiver.
 Structure your advice in JSON format with the following keys:
