@@ -32,6 +32,16 @@ export interface CustomFAQ {
   answer: string;
 }
 
+// The patient's own daily emotional check-in with Hattie at camp. Kept
+// separate from DailyLog so a one-tap mood never fabricates clinical numbers
+// (sleep/hydration) and skews the caregiver's charts — it feeds mood + AI
+// insights only. Keyed by `date` (MM-DD), matching DailyLog.
+export interface MoodCheckIn {
+  date: string;
+  mood: 'peaceful' | 'anxious' | 'restless' | 'sad';
+  at: number; // ms epoch
+}
+
 export interface DailyLog {
   date: string;
   confusionLevel: number; // 1 (Very Clear) to 5 (Highly Confused)

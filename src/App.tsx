@@ -27,14 +27,15 @@ import {
   Music2,
   LogOut,
   Phone,
-  PhoneOff
+  PhoneOff,
+  Tent
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment } from './types';
+import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
-import { getCircleId } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen } from './components';
+import { getCircleId, isFirebaseConfigured } from './lib/firebase';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn } from './components';
 import type { FamilyPackApply } from './components';
 import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -227,6 +228,8 @@ function AppContent() {
   const [faqs, setFaqs] = useStoreList<CustomFAQ>('faqs', INITIAL_FAQS);
   const [logs, setLogs] = useStoreList<DailyLog>('logs', INITIAL_LOGS, 'date');
   const [routine, setRoutine] = useStoreList<RoutineItem>('routine', DEFAULT_ROUTINE);
+  // Patient's daily emotional check-ins with Hattie at camp (keyed by date).
+  const [checkins, setCheckins, checkinsSynced] = useStoreList<MoodCheckIn>('checkins', [], 'date');
 
   // The persona file — session-to-session memory. Written to after every
   // conversation (see runReflection), read into every chat prompt. This is
@@ -465,7 +468,39 @@ function AppContent() {
   const [showRoomsMenu, setShowRoomsMenu] = useState(false);
   const [premiumRoom, setPremiumRoom] = useState<RoomId | null>(null);
 
-  // ---- Call Mode (hands-free premium voice session) ----
+  // ---- Camp: Hattie's daily check-in (patient-facing) ----
+  // The patient meets Hattie first, taps how they're feeling, then "leaves
+  // camp" to talk with Yadira. The check-in feeds mood + AI insights without
+  // fabricating clinical numbers (see handleCampCheckIn).
+  const todayKey = () =>
+    new Date().toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '-');
+  const todaysCheckIn = checkins.find((c) => c.date === todayKey());
+  const [campOpen, setCampOpen] = useState(false);
+  const campAutoOpenedRef = useRef(false);
+  // Auto-open camp once per patient session/day, only after the store has
+  // loaded (so we don't flash camp at someone who already checked in today).
+  useEffect(() => {
+    if (campAutoOpenedRef.current) return;
+    if (!isPatientSession) return;
+    if (isFirebaseConfigured && !checkinsSynced) return;
+    campAutoOpenedRef.current = true;
+    if (!todaysCheckIn) setCampOpen(true);
+  }, [isPatientSession, checkinsSynced, todaysCheckIn]);
+
+  const handleCampCheckIn = (mood: DailyLog['mood']) => {
+    const date = todayKey();
+    setCheckins((prev) => [...prev.filter((c) => c.date !== date), { date, mood, at: Date.now() }]);
+    // Reflect onto today's clinical log ONLY if the caregiver already made one
+    // — never invent sleep/hydration from a single mood tap.
+    setLogs((prev) =>
+      prev.some((l) => l.date === date) ? prev.map((l) => (l.date === date ? { ...l, mood } : l)) : prev
+    );
+  };
+
+  const moodLabel = (m: DailyLog['mood']) =>
+    ({ peaceful: 'calm & content', anxious: 'a little worried', restless: 'restless', sad: 'missing someone' }[m] || m);
+
+  // ---- Call Mode (hands-free voice session) ----
   const [isCallActive, setIsCallActive] = useState(false);
 
   const handleCallMessage = async (text: string) => {
@@ -590,6 +625,15 @@ function AppContent() {
   // Daily Log Inputs
   const [logConfusion, setLogConfusion] = useState<number>(2);
   const [logMood, setLogMood] = useState<'peaceful' | 'anxious' | 'restless' | 'sad'>('peaceful');
+  // Prefill the caregiver's mood field from the patient's own camp check-in
+  // (once, and only if they haven't already charted a clinical log today).
+  const moodPrefilledRef = useRef(false);
+  useEffect(() => {
+    if (moodPrefilledRef.current || !todaysCheckIn) return;
+    if (logs.some((l) => l.date === todayKey())) return;
+    moodPrefilledRef.current = true;
+    setLogMood(todaysCheckIn.mood);
+  }, [todaysCheckIn, logs]);
   const [logHydration, setLogHydration] = useState<number>(6);
   const [logSleep, setLogSleep] = useState<number>(7.5);
   const [logMeds, setLogMeds] = useState<boolean>(true);
@@ -1362,6 +1406,9 @@ function AppContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dailyLogs: logs,
+          // Patient's own daily mood check-ins with Hattie — self-reported
+          // feeling, distinct from the caregiver's clinical charting.
+          moodCheckIns: checkins,
           patientProfile: {
             name: patientName,
             stage: patientStage,
@@ -1468,6 +1515,18 @@ function AppContent() {
             </div>
           )}
 
+          {/* Return to camp — Hattie's check-in, patient side */}
+          {activeTab === 'patient' && (
+            <button
+              id="btn-camp"
+              onClick={() => setCampOpen(true)}
+              className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-[#3A5D45] hover:border-[#CEDFCF] transition-all"
+              title="Visit Hattie at camp"
+            >
+              <Tent className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Calming rooms button — patient side */}
           {activeTab === 'patient' && (
             <button
@@ -1529,6 +1588,20 @@ function AppContent() {
           chatMessages={chatMessages}
         />
       )}
+
+      {/* Camp — Hattie's daily check-in, shown before the patient reaches chat */}
+      <AnimatePresence>
+        {campOpen && (
+          <CampCheckIn
+            key="camp"
+            patientName={patientName}
+            personaLabel={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
+            todaysMood={todaysCheckIn?.mood ?? null}
+            onCheckIn={handleCampCheckIn}
+            onLeave={() => setCampOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Main Content Stage */}
       <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-8 flex flex-col min-w-0">
@@ -2260,6 +2333,15 @@ function AppContent() {
                     </div>
                     <h3 className="text-xl font-bold text-[#2C2C2A]">Today's Daily Care Log</h3>
                   </div>
+
+                  {todaysCheckIn && (
+                    <div className="mb-4 flex items-start gap-2.5 rounded-2xl border border-[#CEDFCF] bg-[#F2FAF4] px-3.5 py-2.5">
+                      <Tent className="w-4 h-4 text-[#3A5D45] shrink-0 mt-0.5" />
+                      <p className="text-xs text-[#3A5D45] leading-snug">
+                        <b>{patientName || 'The patient'}</b> checked in at camp today feeling <b>{moodLabel(todaysCheckIn.mood)}</b>. We’ve pre-filled the mood below — adjust it if your own read differs.
+                      </p>
+                    </div>
+                  )}
 
                   <form onSubmit={handleAddLog} className="space-y-4 flex-1 flex flex-col">
                     

@@ -12,4 +12,6 @@ export { default as RainyWindow } from './sensory/RainyWindow';
 export { default as AutumnLeaves } from './sensory/AutumnLeaves';
 export { default as ForestCanopy } from './sensory/ForestCanopy';
 export { default as CallScreen } from './CallScreen';
+export { default as Hattie } from './Hattie';
+export { default as CampCheckIn } from './CampCheckIn';
 
