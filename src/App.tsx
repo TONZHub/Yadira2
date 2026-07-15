@@ -1472,19 +1472,23 @@ function AppContent() {
       
       {/* Dynamic Header */}
       <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 md:gap-4 shadow-xs">
-        <div className="flex min-w-[150px] items-center gap-3">
-          <img
-            src="/yadira-logo.png"
-            alt="Yadira"
-            id="app-logo-icon"
-            className="h-6 sm:h-7 w-auto"
-          />
-          <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
-            XPRIZE Dementia Companion
-          </span>
-        </div>
+        {/* Branding — hidden on the patient/chat view to keep it calm and
+            uncluttered; shown on the Caregiver Hub (and the login screen). */}
+        {activeTab !== 'patient' && (
+          <div className="flex min-w-[150px] items-center gap-3">
+            <img
+              src="/yadira-logo.png"
+              alt="Yadira"
+              id="app-logo-icon"
+              className="h-6 sm:h-7 w-auto"
+            />
+            <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
+              XPRIZE Dementia Companion
+            </span>
+          </div>
+        )}
 
-        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2 flex-wrap">
+        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2 flex-wrap sm:ml-auto">
           {/* Global Tab Switcher */}
           {!isPatientSession && (
             <div className="tab-switcher flex flex-wrap gap-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2] w-full sm:w-auto">
