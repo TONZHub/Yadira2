@@ -1598,7 +1598,7 @@ function AppContent() {
       {/* Call Mode full-screen overlay */}
       {isCallActive && (
         <CallScreen
-          representedPersona={representedPersona}
+          callerName={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
           isSpeaking={isSpeaking}
           onUserSpoke={handleCallMessage}
           onExit={endCallMode}
