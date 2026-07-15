@@ -1473,15 +1473,15 @@ function AppContent() {
       {/* Dynamic Header */}
       <header className="app-header relative z-10 bg-white/90 backdrop-blur-sm border-b border-[#E3DFC2] sticky top-0 px-4 md:px-8 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 md:gap-4 shadow-xs">
         <div className="flex min-w-[150px] items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#5C8D71] flex items-center justify-center text-white shadow-xs">
-            <Brain className="w-6 h-6" id="app-logo-icon" />
-          </div>
-          <div>
-            <span className="text-xl sm:text-2xl font-semibold tracking-tight text-[#3A5D45]">Yadira</span>
-            <span className="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
-              XPRIZE Dementia Companion
-            </span>
-          </div>
+          <img
+            src="/yadira-logo.png"
+            alt="Yadira"
+            id="app-logo-icon"
+            className="h-8 sm:h-9 w-auto"
+          />
+          <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
+            XPRIZE Dementia Companion
+          </span>
         </div>
 
         <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2 flex-wrap">

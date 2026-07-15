@@ -1,3 +1,5 @@
+<p align="center"><img src="public/yadira-logo.png" alt="Yadira" width="360"></p>
+
 # Sponsor Yadira
 
 **Yadira is free for families.** A daughter should never have to reach for a
