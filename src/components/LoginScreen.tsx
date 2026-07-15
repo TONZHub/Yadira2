@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { AlertTriangle, Loader, Heart, UserRound, Shield } from 'lucide-react';
+import { AlertTriangle, Loader, UserRound, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const LoginScreen: React.FC = () => {
@@ -48,12 +48,9 @@ export const LoginScreen: React.FC = () => {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="p-3 bg-[#E8F1EB] rounded-full">
-              <Heart className="w-8 h-8 text-[#5C8D71]" />
-            </div>
+          <div className="flex justify-center mb-3">
+            <img src="/yadira-logo.png" alt="Yadira" className="h-16 w-auto" />
           </div>
-          <h1 className="text-3xl font-bold text-[#2C2C2A] mb-2">Yadira</h1>
           <p className="text-[#7E7D76] text-sm">Dementia Companion Platform</p>
         </div>
 
