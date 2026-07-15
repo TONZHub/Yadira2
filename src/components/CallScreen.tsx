@@ -4,7 +4,8 @@ import { PhoneOff, Mic, Volume2 } from 'lucide-react';
 import type { Message } from '../types';
 
 interface CallScreenProps {
-  representedPersona: string;
+  /** Who's on the call: the persona name in Vivid mode, or "Yadira" in Lucid. */
+  callerName: string;
   isSpeaking: boolean;
   onUserSpoke: (text: string) => void;
   onExit: () => void;
@@ -12,7 +13,7 @@ interface CallScreenProps {
 }
 
 export default function CallScreen({
-  representedPersona,
+  callerName,
   isSpeaking,
   onUserSpoke,
   onExit,
@@ -29,7 +30,7 @@ export default function CallScreen({
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<number | null>(null);
 
-  const personaName = representedPersona || 'Beth';
+  const personaName = callerName || 'Yadira';
 
   // 1. Synthesize Ringtone & Connection Sounds
   useEffect(() => {
