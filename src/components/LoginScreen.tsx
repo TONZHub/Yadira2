@@ -6,8 +6,8 @@ import { motion } from 'motion/react';
 export const LoginScreen: React.FC = () => {
   const { login, signup, enterPatientMode, loading, error: authError } = useAuth();
   const [screen, setScreen] = useState<'role' | 'caregiver'>('role');
-  const [email, setEmail] = useState('demo@yadira.app');
-  const [password, setPassword] = useState('demo123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [localError, setLocalError] = useState('');
 
@@ -94,6 +94,7 @@ export const LoginScreen: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
+                  autoComplete="email"
                   className="w-full px-4 py-3 border border-[#C4C09E] rounded-lg focus:outline-none focus:ring-3 focus:ring-[#5C8D71] bg-[#FCFAF5] text-lg"
                   placeholder="your@email.com"
                 />
@@ -106,14 +107,10 @@ export const LoginScreen: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
                   className="w-full px-4 py-3 border border-[#C4C09E] rounded-lg focus:outline-none focus:ring-3 focus:ring-[#5C8D71] bg-[#FCFAF5] text-lg"
                   placeholder="••••••••"
                 />
-                {!isSignup && (
-                  <p className="text-xs text-[#7E7D76] mt-1">
-                    Demo: <code className="bg-gray-100 px-2 py-0.5 rounded">demo123456</code>
-                  </p>
-                )}
               </div>
 
               {displayError && (
@@ -159,9 +156,9 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             {!isSignup && (
-              <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-900">
-                  <span className="font-semibold">Demo:</span> Email pre-filled with <code className="bg-white px-1 rounded">demo@yadira.app</code>. Change email to test signup.
+              <div className="mt-6 p-3 bg-[#F2FAF4] border border-[#CEDFCF] rounded-lg">
+                <p className="text-xs text-[#3A5D45]">
+                  <span className="font-semibold">New here?</span> Tap <span className="font-semibold">Sign Up</span> to create your own account — it comes with a fully populated sample family to explore. Or use <span className="font-semibold">I'm a Patient</span> for a one-tap look at the companion.
                 </p>
               </div>
             )}
