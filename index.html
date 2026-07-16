@@ -6,6 +6,26 @@
     <link rel="icon" type="image/png" href="/yadira-logo.png" />
     <meta name="description" content="Yadira — an empathetic AI companion for people living with dementia, paired with a caregiver dashboard and clinical insight tracker." />
     <title>Yadira — Dementia Companion</title>
+    <script>
+      // First-ever visitors at the bare root see the landing page; any device
+      // that has used Yadira before (a token exists) goes straight to the app,
+      // so patients and caregivers never gain an extra step. Any query string
+      // (e.g. /?start from the landing CTAs, or Stripe's ?premium_session
+      // return) bypasses the redirect. Inline in <head> so it runs before the
+      // bundle loads — no flash of the login screen.
+      (function () {
+        try {
+          if (
+            window.location.pathname === '/' &&
+            window.location.search === '' &&
+            !localStorage.getItem('yadira_token') &&
+            !sessionStorage.getItem('yadira_session_role')
+          ) {
+            window.location.replace('/about');
+          }
+        } catch (e) { /* storage blocked — just load the app */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
