@@ -241,6 +241,26 @@ function AppContent() {
   // Patient's daily emotional check-ins with Hattie at camp (keyed by date).
   const [checkins, setCheckins, checkinsSynced] = useStoreList<MoodCheckIn>('checkins', [], 'date');
 
+  // Consent record — the caregiver's Terms acceptance (version + timestamp),
+  // captured at signup (LoginScreen writes yadira_pending_consent) and synced
+  // here into the family's cloud store so it survives devices and is auditable.
+  const [consent, setConsent] = useStoreDoc<{ version?: string; acceptedAt?: number; email?: string }>('consent', {});
+  useEffect(() => {
+    if (consent.acceptedAt) return; // already recorded for this circle
+    try {
+      const pending = localStorage.getItem('yadira_pending_consent');
+      if (!pending) return;
+      const parsed = JSON.parse(pending);
+      if (parsed?.acceptedAt && parsed?.version) {
+        setConsent(parsed);
+        localStorage.removeItem('yadira_pending_consent');
+      }
+    } catch {
+      // Malformed pending record — ignore rather than block the app.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consent.acceptedAt]);
+
   // The persona file — session-to-session memory. Written to after every
   // conversation (see runReflection), read into every chat prompt. This is
   // what separates Yadira from tools that forget the people who forget.
