@@ -115,7 +115,10 @@ export const LoginScreen: React.FC = () => {
               >
                 Terms &amp; Acknowledgements
               </button>
-              .
+              .{' '}
+              <a href="/about" className="text-[#5C8D71] font-semibold underline">
+                Learn more about Yadira →
+              </a>
             </p>
           </div>
         ) : (

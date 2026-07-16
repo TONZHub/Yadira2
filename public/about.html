@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yadira — The companion who remembers, for the people who forget</title>
+<meta name="description" content="Yadira is an empathetic AI companion for people living with dementia — free for families, sustained by caregivers and care facilities." />
+<link rel="icon" type="image/png" href="/yadira-logo.png" />
+<style>
+  :root{
+    --sage:#3A5D45; --sage2:#5C8D71; --cream:#FBF8F0; --paper:#F4EFE4;
+    --ink:#2C2C2A; --sub:#5E5D57; --faint:#7E7D76; --line:#E3DFC2;
+    --rose:#C97B84; --amber:#C8A96A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;background:var(--paper);color:var(--ink);line-height:1.6}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+  a{color:var(--sage);}
+
+  /* hero */
+  .hero{background:linear-gradient(165deg,#FBF8F0 0%,#EFE9D8 70%,#E7E0CB 100%);border-bottom:1px solid var(--line);padding:64px 0 72px;text-align:center}
+  .hero img.logo{width:min(340px,70vw);height:auto;margin-bottom:8px}
+  .hero h1{font-size:clamp(26px,4.4vw,42px);font-weight:800;letter-spacing:-.01em;max-width:760px;margin:10px auto 14px}
+  .hero p.sub{font-size:clamp(16px,2.2vw,19px);color:var(--sub);max-width:640px;margin:0 auto 30px}
+  .cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{display:inline-block;padding:15px 28px;border-radius:999px;font-weight:800;font-size:16px;text-decoration:none;transition:transform .15s ease}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-primary{background:var(--sage);color:#fff;box-shadow:0 6px 18px rgba(58,93,69,.25)}
+  .btn-ghost{background:#fff;color:var(--sage);border:2px solid var(--sage)}
+  .hero .free-note{margin-top:16px;font-size:13px;color:var(--faint)}
+
+  /* story */
+  .story{padding:72px 0;text-align:center}
+  .story blockquote{font-size:clamp(19px,2.8vw,26px);font-weight:600;line-height:1.5;max-width:740px;margin:0 auto;color:var(--ink)}
+  .story blockquote em{color:var(--sage)}
+  .story .attribution{margin-top:18px;color:var(--faint);font-size:14px;max-width:620px;margin-left:auto;margin-right:auto}
+
+  /* features */
+  .features{background:var(--cream);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:72px 0}
+  .features h2, .model h2{font-size:clamp(22px,3vw,30px);font-weight:800;text-align:center;margin-bottom:8px}
+  .features .lead, .model .lead{text-align:center;color:var(--sub);max-width:640px;margin:0 auto 44px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:26px}
+  .card .emoji{font-size:28px}
+  .card h3{font-size:17px;font-weight:800;margin:10px 0 6px}
+  .card p{font-size:14.5px;color:var(--sub)}
+
+  /* model */
+  .model{padding:72px 0}
+  .tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+  .tier{background:#fff;border:1px solid var(--line);border-radius:22px;padding:28px;text-align:center;display:flex;flex-direction:column}
+  .tier.highlight{border:2px solid var(--sage);box-shadow:0 10px 30px rgba(58,93,69,.12)}
+  .tier .who{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--sage2)}
+  .tier .price{font-size:30px;font-weight:800;margin:10px 0 2px}
+  .tier .per{font-size:13px;color:var(--faint);margin-bottom:14px}
+  .tier ul{list-style:none;text-align:left;font-size:14px;color:var(--sub);margin:0 auto 20px;max-width:250px}
+  .tier li{padding:5px 0 5px 26px;position:relative}
+  .tier li::before{content:"✓";position:absolute;left:0;color:var(--sage2);font-weight:800}
+  .tier .btn{margin-top:auto;font-size:14px;padding:12px 20px}
+
+  /* cta band */
+  .band{background:var(--sage);color:#fff;padding:60px 0;text-align:center}
+  .band h2{font-size:clamp(21px,3vw,28px);font-weight:800;margin-bottom:10px}
+  .band p{color:#DCE9DF;max-width:560px;margin:0 auto 26px;font-size:15.5px}
+  .band .btn-primary{background:#fff;color:var(--sage)}
+
+  footer{padding:44px 0 56px;text-align:center;font-size:13px;color:var(--faint)}
+  footer .disclaimer{max-width:640px;margin:0 auto 14px}
+  footer .fine{opacity:.8}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <img class="logo" src="/yadira-logo.png" alt="Yadira" />
+    <h1>The companion who remembers,<br/>for the people who forget.</h1>
+    <p class="sub">Yadira is an empathetic AI companion for people living with dementia — built on validation therapy, paired with a caregiver dashboard, and free for every family.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/">Try Yadira free</a>
+      <a class="btn btn-ghost" href="mailto:partnerships@yadira.app?subject=Facility%20partnership">Book a facility demo</a>
+    </div>
+    <p class="free-note">No credit card. The patient-facing companion is free for families, always.</p>
+  </div>
+</section>
+
+<section class="story">
+  <div class="wrap">
+    <blockquote>
+      “The need doesn’t go away when the person does.<br/>
+      <em>Yadira gives it somewhere to go.</em>”
+    </blockquote>
+    <p class="attribution">
+      When someone with dementia reaches for a person from their past, correcting them causes pain — meeting them where they are brings peace. That principle, called validation therapy, has guided memory care for decades. Yadira extends it into conversation: a companion who is consistently, gently <b>there</b> — every hour, every repeated question, with the same warmth every time.
+    </p>
+  </div>
+</section>
+
+<section class="features">
+  <div class="wrap">
+    <h2>Built for both sides of care</h2>
+    <p class="lead">A calm companion for the person living with dementia. A clear-eyed toolkit for the person caring for them.</p>
+    <div class="grid">
+      <div class="card"><div class="emoji">💬</div><h3>A companion who never tires</h3><p>Warm, patient conversation that validates instead of corrects — and answers the same question the hundredth time with the same kindness as the first. With a natural, human voice.</p></div>
+      <div class="card"><div class="emoji">🧠</div><h3>Session Memory</h3><p>Yadira remembers what they share — the tomatoes, the blue Ford, the wedding — and carries it into every future visit. A disconnection is a pause, not a forgetting.</p></div>
+      <div class="card"><div class="emoji">🏕️</div><h3>Daily check-in with Hattie</h3><p>Each day starts at camp with Hattie the pygmy hippo — a gentle “how are you feeling today?” that quietly enriches the caregiver’s picture of how they’re really doing.</p></div>
+      <div class="card"><div class="emoji">📞</div><h3>Hands-free Call Mode</h3><p>A familiar phone-call experience — it rings, they answer, they just talk. No typing, no screens to figure out.</p></div>
+      <div class="card"><div class="emoji">📋</div><h3>A co-pilot for caregivers</h3><p>Ask Yadira about your loved one’s sleep, moods, and hard moments — answers grounded in their actual records and in established dementia-care practice. Plus AI routines and clinical insight reports.</p></div>
+      <div class="card"><div class="emoji">🌧️</div><h3>Calming rooms &amp; a help button</h3><p>Soothing sensory spaces for anxious moments — and a one-tap “I need my caregiver” button that alerts a real human immediately.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="model">
+  <div class="wrap">
+    <h2>Free for families. Sustained by the people who can pay.</h2>
+    <p class="lead">A daughter should never reach for a credit card to hear her mother’s voice. So the companion is free — and caregivers’ professional tools and facility partnerships keep it that way.</p>
+    <div class="tiers">
+      <div class="tier">
+        <div class="who">Families</div>
+        <div class="price">Free</div>
+        <div class="per">always</div>
+        <ul>
+          <li>The full companion &amp; natural voice</li>
+          <li>Session Memory across visits</li>
+          <li>Call Mode &amp; calming rooms</li>
+          <li>Hattie daily check-ins</li>
+          <li>Unlimited memories &amp; photos</li>
+        </ul>
+        <a class="btn btn-primary" href="/">Start now</a>
+      </div>
+      <div class="tier">
+        <div class="who">Caregiver Pro</div>
+        <div class="price">$5</div>
+        <div class="per">per week — cancel anytime</div>
+        <ul>
+          <li>Everything families get</li>
+          <li>Unlimited AI care reports</li>
+          <li>Unlimited routines &amp; insights</li>
+          <li>Unlimited caregiver co-pilot chat</li>
+        </ul>
+        <a class="btn btn-ghost" href="/">Upgrade in the app</a>
+      </div>
+      <div class="tier highlight">
+        <div class="who">Care facilities</div>
+        <div class="price">Per-unit</div>
+        <div class="per">partnership pricing</div>
+        <ul>
+          <li>Every resident, no family paywall</li>
+          <li>Staff redirection cues</li>
+          <li>Clinical insight tracking</li>
+          <li>Persona onboarding support</li>
+        </ul>
+        <a class="btn btn-primary" href="mailto:partnerships@yadira.app?subject=Facility%20partnership">Talk to us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <h2>Believe no one should grieve without a container?</h2>
+    <p>Sponsorships keep Yadira free for families who couldn’t otherwise afford connection. Every dollar goes to running the service — not ads.</p>
+    <a class="btn btn-primary" href="mailto:partnerships@yadira.app?subject=Sponsoring%20a%20family">Sponsor a family</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="disclaimer">Yadira is a comfort and caregiving companion — <b>not a medical device</b>. It does not diagnose or treat any condition. In an emergency, always contact emergency services.</p>
+    <p class="fine">Built for the XPRIZE “Build with Gemini” challenge · Part of Project Anamnesia · © 2026 Yadira · <a href="mailto:partnerships@yadira.app">partnerships@yadira.app</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
