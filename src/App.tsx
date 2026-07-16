@@ -189,7 +189,6 @@ function AppContent() {
     patientSleepTime, 
     caregiverName, 
     caregiverRelationship,
-    patientMode,
     representedPersona,
     representedVoiceId,
     driftTimeoutSeconds,
@@ -197,6 +196,17 @@ function AppContent() {
   } = profile;
   const profileRef = useRef(profile);
   profileRef.current = profile;
+
+  // Guard the split-second mode-reconciliation flash. On load several sources
+  // (cached profile, shared-mode localStorage, the server poll) settle the
+  // patient mode, and their brief disagreement could flash the wrong companion
+  // — Beth for an instant before Yadira — breaking the illusion. Everything
+  // patient-facing (styling, name, and the greeting) reads this stable value,
+  // which holds the mount-time mode until reconciliation settles (modeReady),
+  // then commits to the real mode exactly once instead of thrashing.
+  const [modeReady, setModeReady] = useState(false);
+  const mountPatientModeRef = useRef(profile.patientMode);
+  const patientMode = modeReady ? profile.patientMode : mountPatientModeRef.current;
   
   const setPatientName = (v: string) => setProfile({ ...profile, patientName: v });
   const setPatientStage = (v: string) => setProfile({ ...profile, patientStage: v });
@@ -296,23 +306,32 @@ function AppContent() {
     // caregiver tab and patient tab agree even when they aren't sharing
     // localStorage.
     let cancelled = false;
+    // Reveal the settled mode once the first reconciliation completes, so the
+    // patient view commits to the real mode exactly once instead of flashing.
+    const settle = () => { if (!cancelled) setModeReady(true); };
     const poll = async () => {
       try {
         const res = await fetch(`/api/shared-mode?circle=${encodeURIComponent(getCircleId())}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) applySharedMode(data?.mode);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) applySharedMode(data?.mode);
+        }
       } catch {
         // Best-effort — ignore transient network errors during polling.
+      } finally {
+        settle();
       }
     };
     poll();
     const intervalId = window.setInterval(poll, 1500);
+    // Safety net: never leave the companion gated if the first poll hangs.
+    const settleFallback = window.setTimeout(settle, 1200);
 
     return () => {
       cancelled = true;
       window.removeEventListener('storage', onStorage);
       window.clearInterval(intervalId);
+      window.clearTimeout(settleFallback);
     };
   }, []);
 
