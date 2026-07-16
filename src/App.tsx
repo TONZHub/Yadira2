@@ -1571,11 +1571,15 @@ function AppContent() {
             uncluttered; shown on the Caregiver Hub (and the login screen). */}
         {activeTab !== 'patient' && (
           <div className="flex min-w-[150px] items-center gap-3">
+            {/* Width-based sizing: the global reset forces img height:auto, and
+                in Tailwind v4 that unlayered rule beats the h-* utilities, so
+                height classes silently no-op (the logo rendered at its natural
+                600x327). Set width; height follows the aspect ratio (~52px ≈ 28px tall). */}
             <img
               src="/yadira-logo.png"
               alt="Yadira"
               id="app-logo-icon"
-              className="h-6 sm:h-7 w-auto"
+              className="w-[52px]"
             />
             <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
               XPRIZE Dementia Companion

@@ -49,7 +49,9 @@ export const LoginScreen: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3">
-            <img src="/yadira-logo.png" alt="Yadira" className="h-16 w-auto" />
+            {/* Width-based sizing — the global img height:auto reset overrides
+                h-* utilities in Tailwind v4. ~118px wide ≈ 64px tall. */}
+            <img src="/yadira-logo.png" alt="Yadira" className="w-[118px]" />
           </div>
           <p className="text-[#7E7D76] text-sm">Dementia Companion Platform</p>
         </div>
