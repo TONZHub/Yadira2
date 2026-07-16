@@ -335,7 +335,8 @@ function getSimulationReply(
   isVivid: boolean,
   personaName: string,
   memories: any[],
-  caregiverSettings: any
+  caregiverSettings: any,
+  todayDateStr?: string
 ): string {
   const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -413,6 +414,13 @@ function getSimulationReply(
           `That kind of love never goes anywhere, dear. It's always right here with you.`
         ]);
   } else if (msgLower.includes('time') || msgLower.includes('what day') || msgLower.includes('clock') || msgLower.includes('date') || msgLower.includes('year')) {
+    if (!isVivid && todayDateStr) {
+      return pick([
+        `Today is ${todayDateStr}. It's a beautiful, peaceful day, and you have everything you need right here.`,
+        `It's ${todayDateStr}. A lovely day to sit together quietly.`,
+        `Today is ${todayDateStr}, dear. There's no rush — we have all the time we need.`,
+      ]);
+    }
     return pick([
       `It's a beautiful, quiet day today. We have all the time we need, right here.`,
       `Today is a gentle, peaceful day. There's no rush and no place we need to be.`,
@@ -600,7 +608,7 @@ function formatPersonaFileContext(personaFile: any, personaName: string): string
 
 // Endpoint for chatting with Yadira
 app.post('/api/chat', async (req, res) => {
-  const { message, history, caregiverSettings, memories, patientMode, representedPersona, personaFile } = req.body;
+  const { message, history, caregiverSettings, memories, patientMode, representedPersona, personaFile, todaysMood } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -608,12 +616,17 @@ app.post('/api/chat', async (req, res) => {
 
   const isVivid = patientMode === 'vivid' || caregiverSettings?.patientMode === 'vivid';
   const personaName = representedPersona || caregiverSettings?.representedPersona || 'Beth';
+  // Server-side date so the response is always consistent regardless of the
+  // patient's device timezone. Injected into the Lucid prompt below.
+  const todayDateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
 
   try {
     // Mock/Simulated Fallback when Gemini API key is missing
     if (isApiKeyMissing) {
       console.log(`[Yadira Backend] Operating in Simulation Mode (No API key detected) - Mode: ${isVivid ? 'vivid' : 'lucid'}`);
-      const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings);
+      const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
       return res.json({ reply });
     }
 
@@ -628,15 +641,28 @@ app.post('/api/chat', async (req, res) => {
       if (caregiverName && relationship) {
         contextAugmentation += `Their primary caregiver is ${caregiverName}, who is their ${relationship}. `;
       }
-      
-      // Match custom FAQs configured by the caregiver to override standard AI responses
+
+      // In Lucid mode, FAQ answers authored as another person (e.g. the caregiver
+      // speaking as a loved one) are injected as guidelines Yadira should honour in
+      // her own voice, not verbatim quotes she must repeat word-for-word. This
+      // prevents identity drift where the companion accidentally speaks AS a living
+      // third party rather than about them.
       if (customAnswers && Array.isArray(customAnswers) && customAnswers.length > 0) {
-        contextAugmentation += `\nCaregiver-defined guidelines for common questions:\n`;
-        customAnswers.forEach((item: any) => {
-          if (item.question && item.answer) {
-            contextAugmentation += `- If asked about "${item.question}", you MUST answer exactly as: "${item.answer}"\n`;
-          }
-        });
+        if (isVivid) {
+          contextAugmentation += `\nCaregiver-defined guidelines for common questions:\n`;
+          customAnswers.forEach((item: any) => {
+            if (item.question && item.answer) {
+              contextAugmentation += `- If asked about "${item.question}", answer exactly as: "${item.answer}"\n`;
+            }
+          });
+        } else {
+          contextAugmentation += `\nCaregiver-suggested responses for common questions (paraphrase these warmly in Yadira's own voice — do not speak as someone else):\n`;
+          customAnswers.forEach((item: any) => {
+            if (item.question && item.answer) {
+              contextAugmentation += `- Topic: "${item.question}" — caregiver's intent: "${item.answer}"\n`;
+            }
+          });
+        }
       }
     }
 
@@ -647,6 +673,18 @@ app.post('/api/chat', async (req, res) => {
           contextAugmentation += `- ${mem.title}: ${mem.description} (${mem.relationshipOrEra || 'Personal memory'})\n`;
         }
       });
+    }
+
+    // If the patient already checked in with Hattie today, their self-reported
+    // mood enriches the companion's emotional awareness for this session.
+    if (todaysMood) {
+      const moodDesc: Record<string, string> = {
+        peaceful: 'calm and at peace',
+        anxious: 'a little worried or anxious',
+        restless: 'restless',
+        sad: 'missing someone',
+      };
+      contextAugmentation += `\nThe patient checked in with Hattie today feeling ${moodDesc[todaysMood] || todaysMood}. Be especially warm and attuned to that emotional note throughout this conversation.\n`;
     }
 
     contextAugmentation += formatPersonaFileContext(personaFile, isVivid ? personaName : 'Yadira');
@@ -665,6 +703,16 @@ CRITICAL VIVID MODE GUIDELINES:
 5. Ground them in comfort. Validate their feelings first, and gently redirect to a calming thought or memory.
 ${PATIENT_CARE_APPROACH}
 ${COMPANION_GUARDRAILS}`;
+    } else {
+      // Lucid mode: Yadira is herself. Add grounding for date questions and
+      // identity safety when a representedPersona is configured.
+      const lucidDateGuard = `\nDATE & REALITY (LUCID MODE): Today is ${todayDateStr}. If the patient asks what day, date, or year it is, answer warmly and clearly: "Today is ${todayDateStr}." Be consistent — never give two different dates in the same conversation. If asked again, confirm the same answer.`;
+
+      const lucidIdentityGuard = (representedPersona)
+        ? `\nIDENTITY (LUCID MODE): You are always Yadira. You are NEVER ${personaName}. ${personaName} is a real person in the patient's life whom they love. When the patient asks about ${personaName}, speak warmly from the outside as Yadira: "${personaName} is thinking of you," "She'll be in touch soon." Even if a caregiver-suggested response uses first-person as ${personaName}, rephrase it gently in Yadira's voice — never claim to be ${personaName}.`
+        : '';
+
+      activeSystemInstruction = `${SYSTEM_INSTRUCTION}${lucidDateGuard}${lucidIdentityGuard}`;
     }
 
     const fullSystemInstruction = `${activeSystemInstruction}\n\nPATIENT-SPECIFIC CONTEXT:\n${contextAugmentation || 'No specific context provided.'}`;
@@ -692,13 +740,13 @@ ${COMPANION_GUARDRAILS}`;
     // jailbreak attempt never lands on the patient.
     if (breaksCharacter(reply)) {
       console.warn('[Yadira Backend] Reply broke character (possible jailbreak) — substituting an in-character redirect.');
-      reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings);
+      reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
     }
 
     res.json({ reply: reply || 'I am here with you, dear. How can I help?' });
   } catch (err: any) {
     console.warn('[Yadira Backend] OpenRouter chat failed (falling back to Simulation Mode):', err.message || err);
-    const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings);
+    const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
     res.json({ reply, fallbackTriggered: true });
   }
 });

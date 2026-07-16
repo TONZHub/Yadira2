@@ -562,18 +562,22 @@ function AppContent() {
 
   const handleCallMessage = async (text: string) => {
     if (!text) {
-      // Call connected: trigger initial greeting
+      // Call connected: trigger initial greeting.
+      // If the conversation is still at the opening greeting, replace it so
+      // the patient doesn't see two back-to-back greetings when they return
+      // from the call to the chat view.
       const greetingText = patientMode === 'vivid'
         ? `Hello, love. It's me, ${representedPersona || 'Beth'}. I'm so glad we are speaking on the phone. How are you feeling today?`
         : `Hello! I am Yadira, and I'm right here on the phone with you. How is your heart feeling today?`;
 
-      const greetMsg: Message = {
-        id: `msg-call-greet-${Date.now()}`,
-        role: 'model',
-        text: greetingText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      appendChatMessage(greetMsg);
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setChatMessages(prev => {
+        if (prev.length === 1 && prev[0].id === 'greet') {
+          // Fresh session — update the greeting in place
+          return [{ ...prev[0], text: greetingText, timestamp: ts }];
+        }
+        return [...prev, { id: `msg-call-greet-${Date.now()}`, role: 'model' as const, text: greetingText, timestamp: ts }];
+      });
       // Force voice enabled so they can hear it
       setVoiceEnabled(true);
       speakTextDirect(greetingText);
@@ -1321,7 +1325,8 @@ function AppContent() {
           patientMode,
           representedPersona,
           memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
-          personaFile: personaFileRef.current
+          personaFile: personaFileRef.current,
+          todaysMood: todaysCheckIn?.mood ?? null,
         })
       });
 
@@ -1523,11 +1528,11 @@ function AppContent() {
 
         setRoutine(formattedRoutine);
         setAiUsage({ ...aiUsage, lastRoutineAt: Date.now() });
-        alert('AI successfully synthesized a highly personalized cognitive routine! It is now loaded into the patient\'s active schedule.');
+        toastSuccess('Routine ready', 'AI generated a personalized cognitive routine — it\'s now loaded into the active schedule.');
       }
     } catch (err: any) {
       console.error(err);
-      alert('Could not synthesize routine. Please check that GEMINI_API_KEY is configured.');
+      toastError('Routine unavailable', err.message?.includes('GEMINI') ? 'The AI routine builder needs a Gemini API key — check the server environment.' : (err.message || 'Could not generate routine. Please try again.'));
     } finally {
       setLoadingRoutine(false);
     }
@@ -1570,7 +1575,7 @@ function AppContent() {
       }
     } catch (err: any) {
       console.error(err);
-      alert('Could not generate clinical insights. Please check that GEMINI_API_KEY is configured.');
+      toastError('Insights unavailable', err.message?.includes('GEMINI') ? 'The AI clinical advisor needs a Gemini API key — check the server environment.' : (err.message || 'Could not generate insights. Please try again.'));
     } finally {
       setLoadingInsights(false);
     }
