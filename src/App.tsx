@@ -35,7 +35,7 @@ import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, Se
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { getCircleId, isFirebaseConfigured } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn, TermsModal, TERMS_VERSION } from './components';
 import type { FamilyPackApply } from './components';
 import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -260,6 +260,17 @@ function AppContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consent.acceptedAt]);
+
+  // Terms §9 mechanism: when the terms version changes after a caregiver
+  // already consented, a Hub banner asks them to review and re-accept the new
+  // version. Never shown to patients; never blocks the companion.
+  const termsOutdated = !isPatientSession && !!consent.acceptedAt && consent.version !== TERMS_VERSION;
+  const [showTermsReview, setShowTermsReview] = useState(false);
+  const acceptUpdatedTerms = () => {
+    setConsent({ version: TERMS_VERSION, acceptedAt: Date.now(), email: consent.email });
+    setShowTermsReview(false);
+    toastSuccess('Thank you', `Terms version ${TERMS_VERSION} accepted and recorded.`);
+  };
 
   // The persona file — session-to-session memory. Written to after every
   // conversation (see runReflection), read into every chat prompt. This is
@@ -1786,6 +1797,11 @@ function AppContent() {
         />
       )}
 
+      {/* Updated-terms review modal (opened from the Hub banner) */}
+      {showTermsReview && (
+        <TermsModal onClose={() => setShowTermsReview(false)} onAccept={acceptUpdatedTerms} />
+      )}
+
       {/* Camp — Hattie's daily check-in, shown before the patient reaches chat */}
       <AnimatePresence>
         {campOpen && (
@@ -2251,6 +2267,22 @@ function AppContent() {
               transition={{ duration: 0.35 }}
               className="caregiver-layout space-y-6 md:space-y-8 flex-1 min-w-0"
             >
+
+              {/* Updated-terms review banner (Terms §9) */}
+              {termsOutdated && (
+                <div className="bg-[#F2FAF4] border border-[#CEDFCF] rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <p className="text-sm text-[#3A5D45] flex-1">
+                    <b>Our Terms &amp; Acknowledgements have been updated.</b> Please review and accept the new version — your acceptance is recorded with its date.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsReview(true)}
+                    className="shrink-0 px-4 py-2.5 bg-[#3A5D45] text-white text-sm font-bold rounded-xl hover:bg-[#2B4633] transition-all"
+                  >
+                    Review &amp; accept
+                  </button>
+                </div>
+              )}
 
               {/* Patient help-button alert — impossible to miss, cleared by acknowledging */}
               {caregiverAlert.active && (

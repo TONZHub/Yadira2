@@ -11,7 +11,11 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [showTerms, setShowTerms] = useState(false);
+  // /?terms deep-links straight to the terms (used by the landing page footer,
+  // since the terms live in-app rather than as a duplicated static page).
+  const [showTerms, setShowTerms] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('terms')
+  );
   // Affirmative acknowledgements required to create an account. The Vivid /
   // not-medical acknowledgement is deliberately its OWN checkbox — it is the
   // ethically loaded part of this product and deserves an explicit yes.
