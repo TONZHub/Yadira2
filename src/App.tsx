@@ -654,6 +654,80 @@ function AppContent() {
     };
   }, []);
 
+  // ---- Caregiver alert: the patient's "I need my caregiver" button ----
+  // Same rails as Aurora: localStorage fast path for same-browser tabs, the
+  // server map for genuinely separate devices. The patient taps once; the
+  // caregiver's hub shows a banner within ~1.5s and acknowledges to clear.
+  const [caregiverAlert, setCaregiverAlertState] = useState<{ active: boolean; at: number }>({ active: false, at: 0 });
+
+  const sendCaregiverAlert = (active: boolean) => {
+    const state = { active, at: Date.now() };
+    setCaregiverAlertState(state);
+    localStorage.setItem('yadira_caregiver_alert', JSON.stringify(state));
+    fetch('/api/caregiver-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active, circle: getCircleId() }),
+    }).catch((err) => console.warn('[Yadira] caregiver-alert push failed', err));
+  };
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== 'yadira_caregiver_alert' || !event.newValue) return;
+      try {
+        const parsed = JSON.parse(event.newValue) as { active?: boolean; at?: number };
+        if (typeof parsed.active === 'boolean') setCaregiverAlertState({ active: parsed.active, at: parsed.at || Date.now() });
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('storage', onStorage);
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/caregiver-alert?circle=${encodeURIComponent(getCircleId())}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (typeof data?.active === 'boolean') setCaregiverAlertState({ active: data.active, at: data.at || 0 });
+      } catch { /* best-effort */ }
+    };
+    poll();
+    const id = window.setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  // Caregiver side: make an incoming alert impossible to miss — sound + toast
+  // on the rising edge (patient devices skip this; they see the inline state).
+  const prevAlertRef = useRef(false);
+  useEffect(() => {
+    if (caregiverAlert.active && !prevAlertRef.current && !isPatientSession) {
+      playSoundCue('chime');
+      toastError(`${patientName || 'The patient'} needs you`, 'They pressed the help button. The banner in the Caregiver Hub shows details.');
+    }
+    prevAlertRef.current = caregiverAlert.active;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caregiverAlert.active, isPatientSession, patientName]);
+
+  // Patient tap: raise the alert, then comfort — the companion immediately
+  // reassures them that a real person is coming.
+  const handlePatientAlert = () => {
+    if (caregiverAlert.active) return; // already raised
+    sendCaregiverAlert(true);
+    const name = caregiverName || 'Your caregiver';
+    const comfort = `${name} has been told, ${patientName || 'dear'}. They will come to you soon. I'm right here with you until then.`;
+    appendChatMessage({
+      id: `msg-alert-${Date.now()}`,
+      role: 'model',
+      text: comfort,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+    speakText(comfort);
+    if (soundFeedback) playSoundCue('chime');
+  };
+
   // New Memory Modal State
   const [newMemTitle, setNewMemTitle] = useState('');
   const [newMemDesc, setNewMemDesc] = useState('');
@@ -1946,6 +2020,32 @@ function AppContent() {
                   >
                     ❤️ Help me feel calm
                   </button>
+
+                  {/* The help button — always visible, full width, one tap
+                      reaches a real human. Confirmation state stays until the
+                      caregiver acknowledges from the Hub. */}
+                  <button
+                    id="btn-alert-caregiver"
+                    onClick={handlePatientAlert}
+                    disabled={caregiverAlert.active}
+                    className={`w-full mt-1 px-4 py-3.5 rounded-2xl text-base font-extrabold transition-all duration-200 active:scale-[0.98] shadow-xs border-2 flex items-center justify-center gap-2.5 ${
+                      caregiverAlert.active
+                        ? 'bg-[#F2FAF4] border-[#CEDFCF] text-[#3A5D45]'
+                        : 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                    }`}
+                  >
+                    {caregiverAlert.active ? (
+                      <>
+                        <Check className="w-5 h-5" />
+                        {caregiverName || 'Your caregiver'} has been told — they're coming
+                      </>
+                    ) : (
+                      <>
+                        <HeartHandshake className="w-5 h-5" />
+                        I need {caregiverName || 'my caregiver'} — please come
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 {/* Patient Chat Input */}
@@ -2151,7 +2251,39 @@ function AppContent() {
               transition={{ duration: 0.35 }}
               className="caregiver-layout space-y-6 md:space-y-8 flex-1 min-w-0"
             >
-              
+
+              {/* Patient help-button alert — impossible to miss, cleared by acknowledging */}
+              {caregiverAlert.active && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-md"
+                >
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="p-2.5 rounded-xl bg-amber-100 text-amber-700 shrink-0 animate-pulse">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-base font-extrabold text-amber-900">
+                        {patientName || 'The patient'} pressed the help button
+                        {caregiverAlert.at ? ` at ${new Date(caregiverAlert.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </p>
+                      <p className="text-sm text-amber-800 mt-0.5">
+                        Please check on them now. If this may be a medical emergency, call emergency services first.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    id="btn-ack-alert"
+                    onClick={() => sendCaregiverAlert(false)}
+                    className="shrink-0 px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition-all active:scale-95"
+                  >
+                    I'm on it — clear alert
+                  </button>
+                </motion.div>
+              )}
+
               {/* Header Profile Dashboard Card */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                 <div className="md:col-span-8 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">

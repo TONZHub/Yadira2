@@ -16,7 +16,9 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     // Mounted under /api, so req.path values are like "/shared-mode" and "/tts".
     // /aurora-mode carries only a boolean and is polled without auth headers by
     // both surfaces — without this exemption its cross-device sync silently 401s.
-    if (req.path === '/shared-mode' || req.path === '/tts' || req.path === '/aurora-mode') {
+    // /caregiver-alert is the patient's help button — it must NEVER fail on a
+    // stale token. Boolean + timestamp only, same risk profile as aurora-mode.
+    if (req.path === '/shared-mode' || req.path === '/tts' || req.path === '/aurora-mode' || req.path === '/caregiver-alert') {
       return next();
     }
 

@@ -78,6 +78,26 @@ app.post('/api/shared-mode', async (req, res) => {
   res.json({ ok: true, mode });
 });
 
+// Caregiver alert — the patient's "I need my caregiver" button. Same
+// in-memory + poll architecture as aurora-mode: the patient device POSTs
+// active:true, the caregiver's device polls it up within ~1.5s and
+// acknowledges by POSTing active:false. Carries only a boolean + timestamp.
+const sharedCaregiverAlert = new Map<string, { active: boolean; at: number }>();
+
+app.get('/api/caregiver-alert', async (req, res) => {
+  res.json(sharedCaregiverAlert.get(circleOf(req)) ?? { active: false, at: 0 });
+});
+
+app.post('/api/caregiver-alert', async (req, res) => {
+  const active = req.body?.active;
+  if (typeof active !== 'boolean') {
+    return res.status(400).json({ error: 'active must be a boolean' });
+  }
+  const state = { active, at: Date.now() };
+  sharedCaregiverAlert.set(circleOf(req), state);
+  res.json({ ok: true, ...state });
+});
+
 // Aurora — intentional visual dissociation screen (caregiver or patient triggered).
 app.get('/api/aurora-mode', async (req, res) => {
   res.json({ active: sharedAuroraActive.get(circleOf(req)) ?? false });
@@ -1436,6 +1456,11 @@ const distCandidates = [
 const distPath = distCandidates.find((p) => fs.existsSync(path.join(p, 'index.html'))) ?? distCandidates[0];
 
 app.use(express.static(distPath));
+
+// Clean URL for the public landing page (public/about.html → dist/about.html).
+app.get('/about', (_req, res) => {
+  res.sendFile(path.resolve(distPath, 'about.html'));
+});
 
 // For all other routes, serve index.html in production (SPA routing)
 app.get('*', (req, res) => {
