@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { AlertTriangle, Loader, UserRound, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
+import TermsModal, { TERMS_VERSION } from './TermsModal';
 
 export const LoginScreen: React.FC = () => {
   const { login, signup, enterPatientMode, loading, error: authError } = useAuth();
@@ -10,6 +11,12 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isSignup, setIsSignup] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [showTerms, setShowTerms] = useState(false);
+  // Affirmative acknowledgements required to create an account. The Vivid /
+  // not-medical acknowledgement is deliberately its OWN checkbox — it is the
+  // ethically loaded part of this product and deserves an explicit yes.
+  const [agreedTerms, setAgreedTerms] = useState(false);
+  const [agreedCare, setAgreedCare] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +32,20 @@ export const LoginScreen: React.FC = () => {
       return;
     }
 
+    if (isSignup && (!agreedTerms || !agreedCare)) {
+      setLocalError('Please review and check both acknowledgements to create an account');
+      return;
+    }
+
     try {
       if (isSignup) {
+        // Record consent before account creation; App syncs this into the
+        // family's cloud store (see the pending-consent effect in App.tsx),
+        // giving a durable version + timestamp record.
+        localStorage.setItem(
+          'yadira_pending_consent',
+          JSON.stringify({ version: TERMS_VERSION, acceptedAt: Date.now(), email })
+        );
         await signup(email, password);
       } else {
         await login(email, password);
@@ -85,6 +104,19 @@ export const LoginScreen: React.FC = () => {
                 </div>
               </div>
             </button>
+            {/* The patient path stays frictionless — the caregiver is the
+                account holder who formally consents at signup. */}
+            <p className="text-center text-[11px] text-[#8A8981] pt-1">
+              By using Yadira you agree to the{' '}
+              <button
+                type="button"
+                onClick={() => setShowTerms(true)}
+                className="text-[#5C8D71] font-semibold underline"
+              >
+                Terms &amp; Acknowledgements
+              </button>
+              .
+            </p>
           </div>
         ) : (
           <>
@@ -115,6 +147,45 @@ export const LoginScreen: React.FC = () => {
                 />
               </div>
 
+              {isSignup && (
+                <div className="space-y-3 p-3.5 bg-[#FCFAF5] border border-[#E3DFC2] rounded-xl">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreedTerms}
+                      onChange={(e) => setAgreedTerms(e.target.checked)}
+                      disabled={loading}
+                      className="mt-0.5 w-4 h-4 accent-[#3A5D45] shrink-0"
+                    />
+                    <span className="text-xs text-[#5E5D57] leading-relaxed">
+                      I have read and agree to the{' '}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); setShowTerms(true); }}
+                        className="text-[#3A5D45] font-semibold underline"
+                      >
+                        Terms &amp; Acknowledgements
+                      </button>
+                      .
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={agreedCare}
+                      onChange={(e) => setAgreedCare(e.target.checked)}
+                      disabled={loading}
+                      className="mt-0.5 w-4 h-4 accent-[#3A5D45] shrink-0"
+                    />
+                    <span className="text-xs text-[#5E5D57] leading-relaxed">
+                      I understand Yadira is <b>not a medical device</b> and never replaces human
+                      care or emergency services — and if I enable Vivid Mode, I affirm I may
+                      represent that person and remain responsible for my loved one's wellbeing.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {displayError && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
@@ -128,7 +199,7 @@ export const LoginScreen: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (isSignup && (!agreedTerms || !agreedCare))}
                 className="w-full py-3 bg-[#3A5D45] text-white font-bold rounded-lg hover:bg-[#2B4633] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
               >
                 {loading && <Loader className="w-5 h-5 animate-spin" />}
@@ -167,6 +238,8 @@ export const LoginScreen: React.FC = () => {
           </>
         )}
       </motion.div>
+
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   );
 };
