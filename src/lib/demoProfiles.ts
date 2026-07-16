@@ -160,7 +160,7 @@ const ROSA: ProfilePack = {
     patientSleepTime: '22:00',
     caregiverName: 'Carmen',
     caregiverRelationship: 'Daughter',
-    patientMode: 'lucid',
+    patientMode: 'vivid',
     representedPersona: 'Carmen',
     representedVoiceId: 'Sarah',
     driftTimeoutSeconds: 50,

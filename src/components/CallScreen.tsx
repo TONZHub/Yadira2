@@ -156,11 +156,15 @@ export default function CallScreen({
     rec.lang = 'en-US';
 
     let finalTranscript = '';
+    // Track the latest interim text so we can submit it if the browser's VAD
+    // ends the session before a final result arrives (mid-sentence cutoff).
+    let lastInterim = '';
 
     rec.onstart = () => {
       setIsListening(true);
       setInterimSpeech('');
       finalTranscript = '';
+      lastInterim = '';
     };
 
     rec.onresult = (event: any) => {
@@ -169,20 +173,30 @@ export default function CallScreen({
         const text = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += text + ' ';
+          lastInterim = ''; // clear once we have a confirmed final segment
         } else {
           interimTranscript += text;
         }
       }
+      if (interimTranscript) lastInterim = interimTranscript;
       setInterimSpeech(finalTranscript + interimTranscript);
     };
 
     rec.onend = () => {
       setIsListening(false);
-      // If we captured speech, dispatch it to the AI conversation handler
-      const spokenText = finalTranscript.trim();
+      // Prefer confirmed final text; fall back to the last interim chunk if the
+      // browser's VAD cut the session before a final result was delivered.
+      const spokenText = (finalTranscript.trim() || lastInterim.trim());
       if (spokenText) {
         onUserSpoke(spokenText);
         setInterimSpeech('');
+        lastInterim = '';
+      } else {
+        // No speech captured — restart recognition so the user can keep talking
+        // without needing to tap anything (handles browser timeout on silence).
+        try {
+          rec.start();
+        } catch (_) {}
       }
     };
 

@@ -17,12 +17,12 @@ export default function SensoryExit({
       onMouseLeave={() => setHover(false)}
       className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 px-6 py-3 rounded-full border transition-all duration-500"
       style={{
-        background: hover ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)',
-        borderColor: hover ? `${tint}0.55)` : `${tint}0.2)`,
+        background: hover ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.14)',
+        borderColor: hover ? `${tint}0.8)` : `${tint}0.5)`,
         boxShadow: hover
-          ? `0 0 24px ${tint}0.35), inset 0 0 12px ${tint}0.08)`
-          : `0 0 12px ${tint}0.15)`,
-        color: hover ? `${tint}0.95)` : `${tint}0.55)`,
+          ? `0 0 24px ${tint}0.4), inset 0 0 12px ${tint}0.1)`
+          : `0 0 12px ${tint}0.2)`,
+        color: hover ? `${tint}1)` : `${tint}0.85)`,
       }}
       aria-label="Return from this room"
     >

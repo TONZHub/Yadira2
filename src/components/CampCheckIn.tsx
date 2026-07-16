@@ -98,6 +98,9 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
             <p className="mt-2 text-lg text-[#5E5D57] font-medium max-w-sm">
               {pickedReply}
             </p>
+            <p className="mt-3 text-xs text-[#7E7D76]">
+              ✓ Your caregiver will see today's check-in.
+            </p>
           </>
         )}
 
