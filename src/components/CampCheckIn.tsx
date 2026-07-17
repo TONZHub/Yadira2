@@ -7,12 +7,13 @@
 //   • Never a trap: "Leave camp" is always available, so a distressed
 //     patient can reach Yadira (or Beth) instantly without checking in.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import type { DailyLog } from '../types';
 import { Hattie } from './Hattie';
 import Campfire from './Campfire';
+import { startCampfireAmbience, playCampCue, type CampfireHandle } from '../lib/campSounds';
 
 type Mood = DailyLog['mood'];
 
@@ -24,6 +25,8 @@ interface CampCheckInProps {
   todaysMood?: Mood | null;
   /** Consecutive days checked in — feeds the campfire's intensity. */
   streakDays?: number;
+  /** Mirrors the app-wide sound feedback setting; silences camp too. */
+  soundEnabled?: boolean;
   onCheckIn: (mood: Mood) => void;
   onLeave: () => void;
 }
@@ -43,6 +46,7 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
   personaLabel,
   todaysMood,
   streakDays = 0,
+  soundEnabled = true,
   onCheckIn,
   onLeave,
 }) => {
@@ -50,9 +54,33 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
   const greeting = greetingForHour(new Date().getHours());
   const pickedReply = picked ? MOODS.find((m) => m.key === picked)?.reply : null;
 
+  // The fire crackles for as long as camp is open, at the streak's warmth.
+  // Hattie says a little marimba "hello" as the screen appears.
+  const fireRef = useRef<CampfireHandle | null>(null);
+  useEffect(() => {
+    if (!soundEnabled) return;
+    fireRef.current = startCampfireAmbience(Math.min(streakDays, 7) / 7);
+    playCampCue('hello');
+    return () => {
+      fireRef.current?.stop();
+      fireRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soundEnabled]);
+  // Checking in feeds the fire — the crackle warms up right away.
+  useEffect(() => {
+    fireRef.current?.setIntensity(Math.min(streakDays, 7) / 7);
+  }, [streakDays]);
+
   const handlePick = (mood: Mood) => {
     setPicked(mood);
+    if (soundEnabled) playCampCue('mood');
     onCheckIn(mood);
+  };
+
+  const handleLeave = () => {
+    if (soundEnabled) playCampCue('leave');
+    onLeave();
   };
 
   return (
@@ -153,7 +181,7 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
         {/* Leave camp — always available */}
         <button
           type="button"
-          onClick={onLeave}
+          onClick={handleLeave}
           className={`mt-7 inline-flex items-center gap-2.5 rounded-full px-7 py-4 text-lg font-extrabold text-white shadow-lg transition-all active:scale-95 ${
             picked ? 'bg-[#3A5D45] hover:bg-[#2B4633]' : 'bg-[#5C8D71] hover:bg-[#4A7259]'
           }`}
