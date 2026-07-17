@@ -192,7 +192,8 @@ function AppContent() {
     representedPersona,
     representedVoiceId,
     driftTimeoutSeconds,
-    driftEnabled
+    driftEnabled,
+    companionPersonality
   } = profile;
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -229,6 +230,8 @@ function AppContent() {
     }).catch((err) => console.warn('[Yadira] shared-mode push failed', err));
   };
   const setRepresentedPersona = (v: string) => setProfile({ ...profile, representedPersona: v });
+  const setCompanionPersonality = (v: NonNullable<typeof profile.companionPersonality>) =>
+    setProfile({ ...profile, companionPersonality: v });
   const setRepresentedVoiceId = (v: string) => setProfile({ ...profile, representedVoiceId: v });
   const setDriftTimeoutSeconds = (v: number) => setProfile({ ...profile, driftTimeoutSeconds: v });
   const setDriftEnabled = (v: boolean) => setProfile({ ...profile, driftEnabled: v });
@@ -1387,7 +1390,8 @@ function AppContent() {
         relationship: caregiverRelationship,
         customAnswers: faqs.map(f => ({ question: f.question, answer: f.answer })),
         patientMode,
-        representedPersona
+        representedPersona,
+        companionPersonality: companionPersonality || 'gentle'
       };
 
       const serverHistory = chatMessages.map(m => ({
@@ -2703,6 +2707,50 @@ function AppContent() {
                           </span>
                         </div>
                       </button>
+                    </div>
+
+                    {/* Yadira's personality — Lucid mode temperament. Not
+                        everyone wants a soothing therapist; some want sunshine,
+                        a joke, plain talk, or a story. */}
+                    <div className="mt-4">
+                      <label className="block text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-1">
+                        Yadira's Personality
+                      </label>
+                      <span className="text-[10px] text-[#7E7D76] leading-tight block mb-2.5">
+                        How Yadira carries herself in Lucid Mode. Vivid Mode is unaffected — there she is {representedPersona || 'the loved one'} entirely.
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {([
+                          { key: 'gentle', emoji: '🕊️', label: 'Gentle & soothing', blurb: 'Calm, soft, and reassuring — the classic Yadira.' },
+                          { key: 'sunny', emoji: '☀️', label: 'Sunny & cheerful', blurb: 'Bright and delighted by little things.' },
+                          { key: 'playful', emoji: '😄', label: 'Playful & witty', blurb: 'A gentle joke and a chuckle together.' },
+                          { key: 'practical', emoji: '🧭', label: 'Plain & practical', blurb: 'Direct and steady — no "dear," no fuss.' },
+                          { key: 'storyteller', emoji: '📖', label: 'Storyteller', blurb: 'Little vivid stories and warm rambles.' },
+                        ] as const).map((p) => {
+                          const active = (companionPersonality || 'gentle') === p.key;
+                          return (
+                            <button
+                              key={p.key}
+                              type="button"
+                              id={`btn-personality-${p.key}`}
+                              onClick={() => { setCompanionPersonality(p.key); playSoundCue('pop'); }}
+                              aria-pressed={active}
+                              className={`p-3 rounded-xl border text-left transition-all duration-200 ${
+                                active
+                                  ? 'bg-[#E8F1EB] border-[#3A5D45] ring-2 ring-[#3A5D45]/10 scale-[1.01]'
+                                  : 'bg-[#FCFAF5] border-[#E3DFC2] hover:bg-[#EAE8DD]'
+                              }`}
+                            >
+                              <span className={`text-xs block font-bold ${active ? 'text-[#3A5D45]' : 'text-[#2C2C2A]'}`}>
+                                {p.emoji} {p.label}
+                              </span>
+                              <span className="text-[10px] leading-tight block mt-0.5 text-[#7E7D76]">
+                                {p.blurb}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
