@@ -1947,6 +1947,7 @@ function AppContent() {
             personaLabel={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
             todaysMood={todaysCheckIn?.mood ?? null}
             streakDays={checkinStreak}
+            soundEnabled={soundFeedback}
             onCheckIn={handleCampCheckIn}
             onLeave={() => setCampOpen(false)}
           />
