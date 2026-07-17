@@ -16,4 +16,5 @@ export { default as Hattie } from './Hattie';
 export { default as CampCheckIn } from './CampCheckIn';
 export { default as TermsModal, TERMS_VERSION } from './TermsModal';
 export { default as PhotoAlbum } from './PhotoAlbum';
+export { default as Campfire } from './Campfire';
 

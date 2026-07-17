@@ -567,6 +567,22 @@ function AppContent() {
   const todayKey = () =>
     new Date().toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '-');
   const todaysCheckIn = checkins.find((c) => c.date === todayKey());
+  // Consecutive days checked in at camp — feeds the campfire's intensity.
+  // If today's check-in hasn't happened yet, the count holds from yesterday
+  // (the fire settles, it is never "lost" before they've had their visit).
+  const checkinStreak = (() => {
+    const dates = new Set(checkins.map((c) => c.date));
+    const fmt = (d: Date) =>
+      d.toLocaleDateString([], { month: '2-digit', day: '2-digit' }).replace('/', '-');
+    const day = new Date();
+    if (!dates.has(fmt(day))) day.setDate(day.getDate() - 1);
+    let streak = 0;
+    for (let i = 0; i < 60 && dates.has(fmt(day)); i++) {
+      streak++;
+      day.setDate(day.getDate() - 1);
+    }
+    return streak;
+  })();
   const [campOpen, setCampOpen] = useState(false);
   const campAutoOpenedRef = useRef(false);
   // Auto-open camp once per patient session/day, only after the store has
@@ -1930,6 +1946,7 @@ function AppContent() {
             patientName={patientName}
             personaLabel={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
             todaysMood={todaysCheckIn?.mood ?? null}
+            streakDays={checkinStreak}
             onCheckIn={handleCampCheckIn}
             onLeave={() => setCampOpen(false)}
           />
