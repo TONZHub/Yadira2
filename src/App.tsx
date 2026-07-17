@@ -31,11 +31,11 @@ import {
   Tent
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn } from './types';
+import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { getCircleId, isFirebaseConfigured } from './lib/firebase';
-import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn, TermsModal, TERMS_VERSION } from './components';
+import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn, TermsModal, TERMS_VERSION, PhotoAlbum } from './components';
 import type { FamilyPackApply } from './components';
 import type { RoomId } from './lib/sensoryRooms';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -238,6 +238,38 @@ function AppContent() {
   const [faqs, setFaqs] = useStoreList<CustomFAQ>('faqs', INITIAL_FAQS);
   const [logs, setLogs] = useStoreList<DailyLog>('logs', INITIAL_LOGS, 'date');
   const [routine, setRoutine] = useStoreList<RoutineItem>('routine', DEFAULT_ROUTINE);
+  // The family's shared photo album — every photo uploaded in chat is kept
+  // here (it used to be analyzed and thrown away), and caregivers can add,
+  // recaption, or remove photos from the Hub. Capped so the localStorage
+  // mirror stays comfortably under browser quota.
+  const [galleryPhotos, setGalleryPhotos] = useStoreList<GalleryPhoto>('gallery', []);
+  const [isAlbumOpen, setIsAlbumOpen] = useState(false);
+  const GALLERY_CAP = 40; // oldest photos roll off past this
+  const addPhotoToGallery = (
+    photoDataUrl: string,
+    insight: { description: string; emotion: string },
+    addedBy: GalleryPhoto['addedBy']
+  ) => {
+    const photo: GalleryPhoto = {
+      id: `photo-${Date.now()}`,
+      dataUrl: photoDataUrl,
+      caption: insight.description,
+      emotion: insight.emotion,
+      addedAt: Date.now(),
+      addedBy,
+    };
+    setGalleryPhotos((prev) => [...prev, photo].slice(-GALLERY_CAP));
+  };
+  // Caption editing in the Hub's album manager
+  const [editingPhotoId, setEditingPhotoId] = useState<string | null>(null);
+  const [editingCaption, setEditingCaption] = useState('');
+  const saveCaption = () => {
+    const id = editingPhotoId;
+    const caption = editingCaption.trim();
+    setEditingPhotoId(null);
+    if (!id || !caption) return;
+    setGalleryPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, caption } : p)));
+  };
   // Patient's daily emotional check-ins with Hattie at camp (keyed by date).
   const [checkins, setCheckins, checkinsSynced] = useStoreList<MoodCheckIn>('checkins', [], 'date');
 
@@ -1368,6 +1400,9 @@ function AppContent() {
           memories: memories.map(m => ({ title: m.title, description: m.description, relationshipOrEra: m.relationshipOrEra })),
           personaFile: personaFileRef.current,
           todaysMood: todaysCheckIn?.mood ?? null,
+          // Captions only — the companion talks about the album's photos
+          // ("looking at old photos" now refers to real ones), images stay client-side.
+          galleryCaptions: galleryPhotos.slice(-10).map(p => p.caption),
         })
       });
 
@@ -1865,6 +1900,28 @@ function AppContent() {
         <TermsModal onClose={() => setShowTermsReview(false)} onAccept={acceptUpdatedTerms} />
       )}
 
+      {/* The family photo album — full-screen photobook */}
+      <AnimatePresence>
+        {isAlbumOpen && galleryPhotos.length > 0 && (
+          <PhotoAlbum
+            key="photo-album"
+            photos={galleryPhotos}
+            companionName={patientMode === 'vivid' ? (representedPersona || 'Beth') : 'Yadira'}
+            onClose={() => setIsAlbumOpen(false)}
+            onAskAbout={(photo) => {
+              // Close the book and hand the photo to the companion — the
+              // conversation picks up right where their eyes were.
+              setIsAlbumOpen(false);
+              handleSendMessage(
+                "I'm looking at a photo in our album.",
+                undefined,
+                { description: photo.caption, emotion: photo.emotion || 'warm', suggestions: [] }
+              );
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Camp — Hattie's daily check-in, shown before the patient reaches chat */}
       <AnimatePresence>
         {campOpen && (
@@ -2092,6 +2149,18 @@ function AppContent() {
                   >
                     📖 Tell me a story
                   </button>
+                  {galleryPhotos.length > 0 && (
+                    <button
+                      id="btn-open-album"
+                      onClick={() => {
+                        setIsAlbumOpen(true);
+                        if (soundFeedback) playSoundCue('pop');
+                      }}
+                      className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 shadow-xs"
+                    >
+                      📷 Look at our photos
+                    </button>
+                  )}
                   <button
                     onClick={() => handleSendMessage("Help me feel calm, I am a bit anxious.")}
                     disabled={isTyping}
@@ -2140,7 +2209,10 @@ function AppContent() {
                     </div>
                     <div className="flex-1 min-w-0 sm:min-w-[200px]">
                       <MediaUpload
-                        onMediaAnalyzed={(insight) => {
+                        onMediaAnalyzed={(insight, photoDataUrl) => {
+                          // Keep the photo — it goes into the family's album
+                          // instead of vanishing after analysis.
+                          if (photoDataUrl) addPhotoToGallery(photoDataUrl, insight, 'patient');
                           const msg = `I see something interesting!`;
                           handleSendMessage(msg, undefined, insight);
                         }}
@@ -3478,6 +3550,87 @@ function AppContent() {
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Photo Album Manager — the real photos behind "let's look at old photos" */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="p-2 rounded-lg bg-[#E8F1EB] text-[#3A5D45]">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#2C2C2A]">Photo Album</h3>
+                    <span className="text-xs font-bold text-[#5C8D71] uppercase tracking-wider bg-[#F2FAF4] px-2.5 py-1 rounded-full border border-[#CEDFCF]">
+                      {galleryPhotos.length} Photo{galleryPhotos.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <MediaUpload
+                    label="Add photo"
+                    onMediaAnalyzed={(insight, photoDataUrl) => {
+                      if (photoDataUrl) {
+                        addPhotoToGallery(photoDataUrl, insight, 'caregiver');
+                        toastSuccess('Photo added', 'It is now in the family album. Tap its caption to reword it.');
+                      }
+                    }}
+                    isPremium={true}
+                  />
+                </div>
+
+                <p className="text-sm text-[#7E7D76] mb-5 leading-relaxed">
+                  Real family photos, kept in one place. {patientName || 'The patient'} can open this album
+                  from the companion screen ("📷 Look at our photos"), and Yadira uses the captions to talk
+                  about the pictures. Photos shared during chat land here automatically. Tap a caption to
+                  reword it — names and places help Yadira the most.
+                </p>
+
+                {galleryPhotos.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-[#FCFAF5] border border-dashed border-[#D5D2B3] text-center text-sm text-[#7E7D76]">
+                    No photos yet. Add the first one above — a wedding photo, the old house, a beloved pet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...galleryPhotos].reverse().map((photo) => (
+                      <div key={photo.id} className="rounded-2xl bg-[#FCFAF5] border border-[#E3DFC2] overflow-hidden shadow-xs relative flex flex-col">
+                        <button
+                          onClick={() => setGalleryPhotos((prev) => prev.filter((p) => p.id !== photo.id))}
+                          className="absolute top-2 right-2 p-1.5 bg-white/90 rounded-full text-[#A6A27B] hover:text-red-500 transition-all shadow-xs"
+                          title="Remove photo from album"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                        <img src={photo.dataUrl} alt={photo.caption} className="w-full h-32 object-cover" />
+                        <div className="p-3 flex-1 flex flex-col gap-1.5">
+                          {editingPhotoId === photo.id ? (
+                            <textarea
+                              autoFocus
+                              rows={3}
+                              value={editingCaption}
+                              onChange={(e) => setEditingCaption(e.target.value)}
+                              onBlur={saveCaption}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveCaption(); }
+                                if (e.key === 'Escape') setEditingPhotoId(null);
+                              }}
+                              className="w-full p-2 bg-white border border-[#C4C09E] rounded-lg text-xs leading-relaxed"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => { setEditingPhotoId(photo.id); setEditingCaption(photo.caption); }}
+                              className="text-left text-xs text-[#5E5D57] leading-relaxed hover:text-[#2C2C2A] line-clamp-3"
+                              title="Tap to edit caption"
+                            >
+                              {photo.caption}
+                            </button>
+                          )}
+                          <span className="mt-auto text-[10px] font-bold uppercase tracking-wider text-[#A6A27B]">
+                            {photo.addedBy === 'patient' ? 'Shared in chat' : 'Added by caregiver'} · {new Date(photo.addedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Add Memory Modal Dialog */}

@@ -96,8 +96,8 @@ export function useStoreList<T extends Record<string, any>>(
 
   const update = useCallback(
     (updater: Updater<T>) => {
-      const next =
-        typeof updater === 'function' ? updater(itemsRef.current) : updater;
+      const prev = itemsRef.current;
+      const next = typeof updater === 'function' ? updater(prev) : updater;
       setItems(next);
       writeLocal(key, next); // always mirror locally
 
@@ -105,6 +105,16 @@ export function useStoreList<T extends Record<string, any>>(
         pendingWrite.current = true;
         try {
           const batch = writeBatch(db);
+          // Items removed from the list must have their Firestore docs deleted
+          // too — set-only writes leave stale docs behind, and the snapshot
+          // listener would resurrect every "deleted" item on the next load.
+          const nextIds = new Set(next.map((item) => String(item[idField])));
+          prev.forEach((item) => {
+            const id = String(item[idField]);
+            if (!nextIds.has(id)) {
+              batch.delete(doc(db!, 'careCircles', circleId, key, id));
+            }
+          });
           next.forEach((item) => {
             const id = String(item[idField]);
             // Firestore rejects `undefined` field values (batch.set throws
