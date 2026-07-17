@@ -99,6 +99,10 @@ export const DEFAULT_PERSONA_FILE: PersonaFile = {
   threadToPickUp: '',
 };
 
+// Yadira's temperament in Lucid mode. Vivid mode is unaffected — there the
+// companion's whole character IS the represented loved one.
+export type CompanionPersonality = 'gentle' | 'sunny' | 'playful' | 'practical' | 'storyteller';
+
 export interface CaregiverProfile {
   patientName: string;
   patientStage: string;
@@ -112,6 +116,7 @@ export interface CaregiverProfile {
   representedVoiceId: string;
   driftTimeoutSeconds: number;
   driftEnabled: boolean;
+  companionPersonality?: CompanionPersonality;
 }
 
 export const DEFAULT_PROFILE: CaregiverProfile = {
@@ -127,4 +132,5 @@ export const DEFAULT_PROFILE: CaregiverProfile = {
   representedVoiceId: 'zippy-pecan-9151__design-voice-233c4887',
   driftTimeoutSeconds: 25,
   driftEnabled: true,
+  companionPersonality: 'gentle',
 };

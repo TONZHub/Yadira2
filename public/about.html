@@ -67,6 +67,29 @@
   footer{padding:44px 0 56px;text-align:center;font-size:13px;color:var(--faint)}
   footer .disclaimer{max-width:640px;margin:0 auto 14px}
   footer .fine{opacity:.8}
+
+  /* section nav in hero */
+  .hero-nav{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-top:22px;font-size:14px;font-weight:700}
+  .hero-nav a{color:var(--sage);text-decoration:none;border-bottom:2px solid transparent;padding-bottom:2px}
+  .hero-nav a:hover{border-bottom-color:var(--sage2)}
+
+  /* about */
+  .about{padding:72px 0;border-bottom:1px solid var(--line)}
+  .about h2{font-size:clamp(22px,3vw,30px);font-weight:800;text-align:center;margin-bottom:8px}
+  .about .lead{text-align:center;color:var(--sub);max-width:640px;margin:0 auto 40px}
+  .about-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px;max-width:900px;margin:0 auto}
+  .about-cols h3{font-size:16px;font-weight:800;color:var(--sage);margin-bottom:8px}
+  .about-cols p{font-size:14.5px;color:var(--sub)}
+
+  /* why choose */
+  .why{background:var(--cream);border-bottom:1px solid var(--line);padding:72px 0}
+  .why h2{font-size:clamp(22px,3vw,30px);font-weight:800;text-align:center;margin-bottom:8px}
+  .why .lead{text-align:center;color:var(--sub);max-width:640px;margin:0 auto 44px}
+  .why-list{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+  .why-item{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px 24px;display:flex;gap:16px;align-items:flex-start}
+  .why-item .mark{font-size:22px;line-height:1.2;flex-shrink:0}
+  .why-item h3{font-size:15.5px;font-weight:800;margin-bottom:3px}
+  .why-item p{font-size:14px;color:var(--sub)}
 </style>
 </head>
 <body>
@@ -81,6 +104,12 @@
       <a class="btn btn-ghost" href="mailto:partnerships@yadira.app?subject=Facility%20partnership">Book a facility demo</a>
     </div>
     <p class="free-note">No credit card. The patient-facing companion is free for families, always.</p>
+    <nav class="hero-nav" aria-label="Page sections">
+      <a href="#about">About</a>
+      <a href="#why">Why choose Yadira</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
   </div>
 </section>
 
@@ -96,7 +125,61 @@
   </div>
 </section>
 
-<section class="features">
+<section class="about" id="about">
+  <div class="wrap">
+    <h2>About Yadira</h2>
+    <p class="lead">Born from one family's experience of dementia — built so no family has to navigate it alone.</p>
+    <div class="about-cols">
+      <div>
+        <h3>What Yadira is</h3>
+        <p>Yadira is an AI companion for people living with dementia, and a working toolkit for the people who care for them. The companion talks, listens, remembers, and reassures — by text or in a natural human voice, around the clock, with the same patience at 3&nbsp;AM as at noon. The caregiver side turns those conversations into something useful: daily mood check-ins, routines, clinical insight reports, and a co-pilot that answers questions grounded in your loved one's actual records.</p>
+      </div>
+      <div>
+        <h3>How it began</h3>
+        <p>Yadira is part of Project Anamnesia and was built for the XPRIZE "Build with Gemini" challenge. It started with a simple observation from real caregiving: when someone reaches for a person from their past, the need doesn't go away just because the person is gone. Correcting them causes pain. Meeting them where they are brings peace. Yadira was built to be that meeting place.</p>
+      </div>
+      <div>
+        <h3>What guides it</h3>
+        <p>Everything in Yadira follows validation therapy — the memory-care principle that you meet a person in their reality rather than argue them out of it. It never scolds, never corrects a confused timeline, and never runs out of patience. And it knows what it is: a comfort companion, not a medical device and never a replacement for human care — which is why a one-tap help button always reaches a real person.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="why" id="why">
+  <div class="wrap">
+    <h2>Why choose Yadira</h2>
+    <p class="lead">There are chatbots, and there are baby monitors. Yadira is neither — it's the only companion designed for both the person forgetting and the person remembering for two.</p>
+    <div class="why-list">
+      <div class="why-item"><div class="mark">🤝</div><div>
+        <h3>Validation-first, by design</h3>
+        <p>Most assistants correct mistakes; that's their job. Yadira's job is the opposite — built on decades-old memory-care practice, it validates feelings and meets your loved one in their timeline, every single time.</p>
+      </div></div>
+      <div class="why-item"><div class="mark">🎭</div><div>
+        <h3>A personality that fits them</h3>
+        <p>Not everyone wants a soothing therapist. Choose how Yadira carries herself — gentle, sunny, playful, plain-and-practical, or a storyteller — so the companion sounds like someone your loved one would actually enjoy.</p>
+      </div></div>
+      <div class="why-item"><div class="mark">🕯️</div><div>
+        <h3>Vivid Mode, handled with respect</h3>
+        <p>When they reach for someone from their past, Yadira can gently step into that presence — but only with the caregiver's explicit, informed consent, protective guardrails in every reply, and the caregiver in control at every moment. We treat this seriously, because it is serious.</p>
+      </div></div>
+      <div class="why-item"><div class="mark">🧠</div><div>
+        <h3>It actually remembers</h3>
+        <p>Session Memory carries the tomatoes, the blue Ford, and the wedding waltz from one visit into the next. The photo album keeps real family photos in reach, and Yadira talks about them like she was there.</p>
+      </div></div>
+      <div class="why-item"><div class="mark">🚨</div><div>
+        <h3>A human is always one tap away</h3>
+        <p>Yadira never pretends to replace people. The patient always has a help button that alerts their caregiver immediately — and the caregiver sees check-ins, moods, and alerts in real time.</p>
+      </div></div>
+      <div class="why-item"><div class="mark">💚</div><div>
+        <h3>Free for families — genuinely</h3>
+        <p>The full companion costs families nothing, with no ads and no selling of data, ever. Caregiver Pro subscriptions and facility partnerships are what keep the lights on.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
   <div class="wrap">
     <h2>Built for both sides of care</h2>
     <p class="lead">A calm companion for the person living with dementia. A clear-eyed toolkit for the person caring for them.</p>
@@ -111,7 +194,7 @@
   </div>
 </section>
 
-<section class="model">
+<section class="model" id="pricing">
   <div class="wrap">
     <h2>Free for families. Sustained by the people who can pay.</h2>
     <p class="lead">A daughter should never reach for a credit card to hear her mother’s voice. So the companion is free — and caregivers’ professional tools and facility partnerships keep it that way.</p>
