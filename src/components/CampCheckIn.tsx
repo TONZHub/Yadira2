@@ -88,7 +88,7 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center overflow-y-auto"
+      className="fixed inset-0 z-50 flex flex-col items-center p-6 text-center overflow-y-auto"
       style={{
         background:
           'radial-gradient(120% 90% at 50% 30%, #F7E9CE 0%, #EFE3CB 40%, #E4D9BE 100%)',
@@ -100,21 +100,25 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
         style={{ background: 'radial-gradient(60% 45% at 50% 68%, rgba(247,184,94,0.28), transparent 70%)' }}
       />
 
-      <div className="relative z-10 w-full max-w-md flex flex-col items-center">
+      {/* `m-auto` (not justify-center on the scroll container) so the card
+          centers when there's room but scrolls from the top — never clipping
+          Hattie's hat — when there isn't. */}
+      <div className="relative z-10 w-full max-w-md flex flex-col items-center m-auto">
         <motion.div
           initial={{ scale: 0.85, y: 12 }}
           animate={{ scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 140, damping: 14 }}
         >
-          <Hattie size={170} />
+          <Hattie size={132} />
         </motion.div>
 
-        {/* The campfire — grows with each day they visit, never goes out */}
+        {/* The campfire — grows with each day they visit, never goes out.
+            Hattie sits right up close to it. */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25, duration: 0.6 }}
-          className="-mt-2"
+          className="-mt-4"
         >
           <Campfire streak={streakDays} width={150} />
           <p className="mt-1.5 text-xs font-semibold text-[#8A6A45]">
