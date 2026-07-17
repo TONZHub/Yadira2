@@ -12,6 +12,7 @@ import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import type { DailyLog } from '../types';
 import { Hattie } from './Hattie';
+import Campfire from './Campfire';
 
 type Mood = DailyLog['mood'];
 
@@ -21,6 +22,8 @@ interface CampCheckInProps {
   personaLabel: string;
   /** Today's already-recorded feeling, if they've checked in earlier today. */
   todaysMood?: Mood | null;
+  /** Consecutive days checked in — feeds the campfire's intensity. */
+  streakDays?: number;
   onCheckIn: (mood: Mood) => void;
   onLeave: () => void;
 }
@@ -39,6 +42,7 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
   patientName,
   personaLabel,
   todaysMood,
+  streakDays = 0,
   onCheckIn,
   onLeave,
 }) => {
@@ -74,10 +78,27 @@ export const CampCheckIn: React.FC<CampCheckInProps> = ({
           animate={{ scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 140, damping: 14 }}
         >
-          <Hattie size={190} />
+          <Hattie size={170} />
         </motion.div>
 
-        <p className="mt-1 text-sm font-bold uppercase tracking-[0.2em] text-[#3A5D45]">
+        {/* The campfire — grows with each day they visit, never goes out */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.25, duration: 0.6 }}
+          className="-mt-2"
+        >
+          <Campfire streak={streakDays} width={150} />
+          <p className="mt-1.5 text-xs font-semibold text-[#8A6A45]">
+            {streakDays >= 2
+              ? `The fire is on day ${streakDays} — it grows a little warmer each day you visit.`
+              : streakDays === 1
+                ? 'You lit the fire today. Come back tomorrow and it will grow.'
+                : 'The embers are warm, ready for you.'}
+          </p>
+        </motion.div>
+
+        <p className="mt-2 text-sm font-bold uppercase tracking-[0.2em] text-[#3A5D45]">
           🏕️ Camp
         </p>
 
