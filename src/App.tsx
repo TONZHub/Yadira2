@@ -712,7 +712,15 @@ function AppContent() {
         const res = await fetch(`/api/caregiver-alert?circle=${encodeURIComponent(getCircleId())}`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (typeof data?.active === 'boolean') setCaregiverAlertState({ active: data.active, at: data.at || 0 });
+        if (typeof data?.active === 'boolean') {
+          // Bail out when nothing changed — a fresh object every poll tick
+          // re-renders the whole app every 1.5s for no reason.
+          setCaregiverAlertState((prev) =>
+            prev.active === data.active && prev.at === (data.at || 0)
+              ? prev
+              : { active: data.active, at: data.at || 0 }
+          );
+        }
       } catch { /* best-effort */ }
     };
     poll();
