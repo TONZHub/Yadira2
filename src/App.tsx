@@ -3734,18 +3734,45 @@ function AppContent() {
   );
 }
 
+// The logo animation runs one draw-in + heartbeat cycle in about 4.5s before
+// the frame blanks and loops. The splash holds at least that long — a slower
+// entrance, deliberately: the wordmark finishes drawing instead of being cut
+// off mid-stroke by a fast auth resolve.
+const SPLASH_MIN_MS = 4500;
+
+// Full-screen splash — the background matches the GIF's own cream exactly so
+// the animation reads as one seamless surface, not a rectangle on a page.
+function SplashScreen() {
+  return (
+    <div
+      role="status"
+      aria-label="Yadira is loading"
+      className="min-h-screen bg-[#D5D1C2] flex items-center justify-center p-6"
+    >
+      <motion.img
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+        src="/yadira-loading.gif"
+        alt="Yadira"
+        className="w-full max-w-[420px]"
+      />
+    </div>
+  );
+}
+
 // Wrapper component with Auth
 function App() {
   const { user, loading, logout } = useAuth();
+  // Hold the splash for a full animation cycle even when auth resolves fast.
+  const [splashHold, setSplashHold] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSplashHold(false), SPLASH_MIN_MS);
+    return () => window.clearTimeout(t);
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center">
-        <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} className="text-white text-lg font-semibold">
-          Loading Yadira...
-        </motion.div>
-      </div>
-    );
+  if (loading || splashHold) {
+    return <SplashScreen />;
   }
 
   if (!user) {

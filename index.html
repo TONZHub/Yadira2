@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="/yadira-logo.png" />
+    <!-- Splash animation: start fetching before the JS bundle parses so the
+         logo draws from frame one instead of popping in mid-animation. -->
+    <link rel="preload" as="image" href="/yadira-loading.gif" />
     <meta name="description" content="Yadira — an empathetic AI companion for people living with dementia, paired with a caregiver dashboard and clinical insight tracker." />
     <title>Yadira — Dementia Companion</title>
     <script>
