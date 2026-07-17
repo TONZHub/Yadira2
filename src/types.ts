@@ -32,6 +32,18 @@ export interface CustomFAQ {
   answer: string;
 }
 
+// A real photo in the family's shared album. The image itself is stored as a
+// compressed JPEG data URL (~640px longest side) so each photo stays well
+// under Firestore's 1MB/doc limit and the localStorage mirror stays lean.
+export interface GalleryPhoto {
+  id: string;
+  dataUrl: string;
+  caption: string;           // starts as the AI's description; caregiver-editable
+  emotion?: string;          // emotional tone detected at upload
+  addedAt: number;           // ms epoch
+  addedBy: 'patient' | 'caregiver';
+}
+
 // The patient's own daily emotional check-in with Hattie at camp. Kept
 // separate from DailyLog so a one-tap mood never fabricates clinical numbers
 // (sleep/hydration) and skews the caregiver's charts — it feeds mood + AI

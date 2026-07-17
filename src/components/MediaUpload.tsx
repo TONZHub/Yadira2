@@ -4,12 +4,50 @@ import { motion } from 'motion/react';
 import { useToast } from '../lib/ToastContext';
 
 interface MediaUploadProps {
-  onMediaAnalyzed: (insight: { description: string; emotion: string; suggestions: string[] }) => void;
+  /**
+   * Called with the AI's insight plus a gallery-sized copy of the photo
+   * (JPEG data URL, ~640px longest side) so callers can save it to the
+   * family's photo album instead of discarding it after analysis.
+   */
+  onMediaAnalyzed: (
+    insight: { description: string; emotion: string; suggestions: string[] },
+    photoDataUrl?: string
+  ) => void;
   disabled?: boolean;
   isPremium?: boolean;
+  /** Button label — defaults to "Media". */
+  label?: string;
 }
 
-export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disabled = false, isPremium = true }) => {
+// Downscale an already-loaded data URL to a small gallery thumbnail. Falls
+// back to the original if canvas work fails (e.g. decode error) — better a
+// bigger photo in the album than none.
+const GALLERY_MAX_DIMENSION = 640;
+const GALLERY_JPEG_QUALITY = 0.7;
+function makeGalleryPhoto(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const largestSide = Math.max(image.naturalWidth || 1, image.naturalHeight || 1);
+        const scale = Math.min(1, GALLERY_MAX_DIMENSION / largestSide);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+        canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(dataUrl);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', GALLERY_JPEG_QUALITY));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
+export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disabled = false, isPremium = true, label = 'Media' }) => {
   const { error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -116,7 +154,8 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
       }
 
       const insight = await response.json();
-      onMediaAnalyzed(insight);
+      const photoDataUrl = await makeGalleryPhoto(base64Data);
+      onMediaAnalyzed(insight, photoDataUrl);
       clearPreview();
     } catch (err) {
       const msg = `Analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`;
@@ -155,7 +194,7 @@ export const MediaUpload: React.FC<MediaUploadProps> = ({ onMediaAnalyzed, disab
           } disabled:opacity-50`}
         >
           {isLoading ? <Loader size={20} className="animate-spin" /> : (!isPremium ? <Lock size={18} /> : <Upload size={20} />)}
-          Media
+          {label}
         </button>
 
         {isLoading && <span className="text-sm text-gray-500">Analyzing...</span>}

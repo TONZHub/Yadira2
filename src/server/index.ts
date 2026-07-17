@@ -608,7 +608,7 @@ function formatPersonaFileContext(personaFile: any, personaName: string): string
 
 // Endpoint for chatting with Yadira
 app.post('/api/chat', async (req, res) => {
-  const { message, history, caregiverSettings, memories, patientMode, representedPersona, personaFile, todaysMood } = req.body;
+  const { message, history, caregiverSettings, memories, patientMode, representedPersona, personaFile, todaysMood, galleryCaptions } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -673,6 +673,19 @@ app.post('/api/chat', async (req, res) => {
           contextAugmentation += `- ${mem.title}: ${mem.description} (${mem.relationshipOrEra || 'Personal memory'})\n`;
         }
       });
+    }
+
+    // The family's real photo album — captions only, no image data. Grounds
+    // the companion's "let's look at old photos" suggestions in photos that
+    // actually exist in the app's album, which the patient can open themselves.
+    if (Array.isArray(galleryCaptions) && galleryCaptions.length > 0) {
+      contextAugmentation += `\nThe family keeps a photo album in this app (the patient can open it with the "Look at our photos" button). It currently holds these photos:\n`;
+      galleryCaptions.slice(0, 10).forEach((cap: any) => {
+        if (typeof cap === 'string' && cap.trim()) {
+          contextAugmentation += `- ${cap.trim()}\n`;
+        }
+      });
+      contextAugmentation += `When you suggest looking at old photos, refer to this real album and its photos rather than imagining ones that may not exist.\n`;
     }
 
     // If the patient already checked in with Hattie today, their self-reported
