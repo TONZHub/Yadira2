@@ -1,11 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
 import { AlertTriangle, Loader, UserRound, Shield } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import TermsModal, { TERMS_VERSION } from './TermsModal';
+
+// The logo draw-in finishes around 2.5s and holds; the frame blanks near
+// 5.5s. Fade the intro out just before the blank so the wordmark never
+// vanishes mid-hold.
+const INTRO_MS = 5200;
+const INTRO_SEEN_KEY = 'yadira_intro_seen';
 
 export const LoginScreen: React.FC = () => {
   const { login, signup, enterPatientMode, loading, error: authError } = useAuth();
+  // The brand moment: "Yadira!" … then "log in?". Plays once per browser
+  // session — bouncing back to this screen doesn't replay the wait.
+  const [showIntro, setShowIntro] = useState(() => {
+    try {
+      return !sessionStorage.getItem(INTRO_SEEN_KEY);
+    } catch {
+      return true;
+    }
+  });
+  const finishIntro = () => {
+    try {
+      sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+    } catch { /* storage blocked — intro just replays next time */ }
+    setShowIntro(false);
+  };
+  useEffect(() => {
+    if (!showIntro) return;
+    const t = window.setTimeout(finishIntro, INTRO_MS);
+    return () => window.clearTimeout(t);
+  }, [showIntro]);
   const [screen, setScreen] = useState<'role' | 'caregiver'>('role');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,6 +89,27 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center p-4">
+      {/* Logo intro — the wordmark draws itself in on its own cream, then
+          fades to reveal the login. Tap anywhere to skip. */}
+      <AnimatePresence>
+        {showIntro && (
+          <motion.div
+            key="logo-intro"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.9, ease: 'easeInOut' } }}
+            onClick={finishIntro}
+            role="status"
+            aria-label="Yadira"
+            className="fixed inset-0 z-50 bg-[#D5D1C2] flex items-center justify-center p-6 cursor-pointer"
+          >
+            <img
+              src="/yadira-loading.gif"
+              alt="Yadira"
+              className="w-full max-w-[420px]"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
