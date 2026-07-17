@@ -81,15 +81,27 @@
   .about-cols h3{font-size:16px;font-weight:800;color:var(--sage);margin-bottom:8px}
   .about-cols p{font-size:14.5px;color:var(--sub)}
 
-  /* why choose */
+  /* why choose — comparison table */
   .why{background:var(--cream);border-bottom:1px solid var(--line);padding:72px 0}
   .why h2{font-size:clamp(22px,3vw,30px);font-weight:800;text-align:center;margin-bottom:8px}
   .why .lead{text-align:center;color:var(--sub);max-width:640px;margin:0 auto 44px}
-  .why-list{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-  .why-item{background:#fff;border:1px solid var(--line);border-radius:18px;padding:20px 24px;display:flex;gap:16px;align-items:flex-start}
-  .why-item .mark{font-size:22px;line-height:1.2;flex-shrink:0}
-  .why-item h3{font-size:15.5px;font-weight:800;margin-bottom:3px}
-  .why-item p{font-size:14px;color:var(--sub)}
+  .compare-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:22px;border:1px solid var(--line);background:#fff;box-shadow:0 8px 26px rgba(58,93,69,.08)}
+  table.compare{width:100%;min-width:640px;border-collapse:collapse;font-size:14px}
+  .compare th,.compare td{padding:14px 14px;text-align:center;border-bottom:1px solid var(--line)}
+  .compare tr:last-child th,.compare tr:last-child td{border-bottom:none}
+  .compare thead th{font-size:13px;font-weight:800;padding-top:20px}
+  .compare thead .who-emoji{display:block;font-size:26px;margin-bottom:4px}
+  .compare thead .who-sub{display:block;font-size:10.5px;font-weight:600;color:var(--faint);margin-top:2px}
+  .compare td.feature,.compare th.feature{text-align:left;font-weight:700;font-size:13.5px;color:var(--ink);max-width:230px}
+  .compare td.feature small{display:block;font-weight:500;color:var(--faint);font-size:11.5px;margin-top:1px}
+  .compare .yes{color:var(--sage2);font-weight:800;font-size:17px}
+  .compare .no{color:#C97B84;font-weight:800;font-size:17px}
+  .compare .some{color:var(--amber);font-weight:800;font-size:14px}
+  .compare col.yadira-col{background:#F0F6F1}
+  .compare thead th.yadira{color:var(--sage)}
+  .compare tr.price-row td{font-weight:800;font-size:13.5px;color:var(--ink);background:var(--paper)}
+  .compare tr.price-row td small{display:block;font-weight:600;color:var(--faint);font-size:10.5px}
+  .why .fair-note{max-width:640px;margin:22px auto 0;text-align:center;font-size:13px;color:var(--faint)}
 </style>
 </head>
 <body>
@@ -149,33 +161,63 @@
 <section class="why" id="why">
   <div class="wrap">
     <h2>Why choose Yadira</h2>
-    <p class="lead">There are chatbots, and there are baby monitors. Yadira is neither — it's the only companion designed for both the person forgetting and the person remembering for two.</p>
-    <div class="why-list">
-      <div class="why-item"><div class="mark">🤝</div><div>
-        <h3>Validation-first, by design</h3>
-        <p>Most assistants correct mistakes; that's their job. Yadira's job is the opposite — built on decades-old memory-care practice, it validates feelings and meets your loved one in their timeline, every single time.</p>
-      </div></div>
-      <div class="why-item"><div class="mark">🎭</div><div>
-        <h3>A personality that fits them</h3>
-        <p>Not everyone wants a soothing therapist. Choose how Yadira carries herself — gentle, sunny, playful, plain-and-practical, or a storyteller — so the companion sounds like someone your loved one would actually enjoy.</p>
-      </div></div>
-      <div class="why-item"><div class="mark">🕯️</div><div>
-        <h3>Vivid Mode, handled with respect</h3>
-        <p>When they reach for someone from their past, Yadira can gently step into that presence — but only with the caregiver's explicit, informed consent, protective guardrails in every reply, and the caregiver in control at every moment. We treat this seriously, because it is serious.</p>
-      </div></div>
-      <div class="why-item"><div class="mark">🧠</div><div>
-        <h3>It actually remembers</h3>
-        <p>Session Memory carries the tomatoes, the blue Ford, and the wedding waltz from one visit into the next. The photo album keeps real family photos in reach, and Yadira talks about them like she was there.</p>
-      </div></div>
-      <div class="why-item"><div class="mark">🚨</div><div>
-        <h3>A human is always one tap away</h3>
-        <p>Yadira never pretends to replace people. The patient always has a help button that alerts their caregiver immediately — and the caregiver sees check-ins, moods, and alerts in real time.</p>
-      </div></div>
-      <div class="why-item"><div class="mark">💚</div><div>
-        <h3>Free for families — genuinely</h3>
-        <p>The full companion costs families nothing, with no ads and no selling of data, ever. Caregiver Pro subscriptions and facility partnerships are what keep the lights on.</p>
-      </div></div>
+    <p class="lead">Families already spend real money trying to ease this loneliness — companion robots, robotic pets, therapy dolls. Here's how they honestly compare.</p>
+    <div class="compare-scroll">
+      <table class="compare">
+        <colgroup>
+          <col class="feature-col" />
+          <col class="yadira-col" />
+          <col /><col /><col />
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="feature" scope="col"></th>
+            <th class="yadira" scope="col"><span class="who-emoji">💚</span>Yadira<span class="who-sub">AI companion</span></th>
+            <th scope="col"><span class="who-emoji">🤖</span>Elsy<span class="who-sub">companion robot</span></th>
+            <th scope="col"><span class="who-emoji">🐱</span>Robot cat<span class="who-sub">robotic pet</span></th>
+            <th scope="col"><span class="who-emoji">🍼</span>Reborn doll<span class="who-sub">therapy doll</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feature">Holds a real conversation<small>listens, responds, never runs out of patience</small></td>
+            <td class="yes">✓</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr>
+            <td class="feature">Remembers <em>your</em> family's stories<small>the tomatoes, the blue Ford, the wedding waltz</small></td>
+            <td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr>
+            <td class="feature">Can gently be the one they miss<small>Vivid Mode — with caregiver consent &amp; guardrails</small></td>
+            <td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr>
+            <td class="feature">Tells you how they're really doing<small>daily mood check-ins, clinical insight reports</small></td>
+            <td class="yes">✓</td><td class="some">partial</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr>
+            <td class="feature">Help button that reaches a real human<small>one tap alerts the caregiver instantly</small></td>
+            <td class="yes">✓</td><td class="some">partial</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr>
+            <td class="feature">Something warm to physically hold<small>touch matters — we won't pretend otherwise</small></td>
+            <td class="no">✗</td><td class="no">✗</td><td class="yes">✓</td><td class="yes">✓</td>
+          </tr>
+          <tr>
+            <td class="feature">Nothing new to buy<small>runs on the tablet or phone you already own</small></td>
+            <td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td>
+          </tr>
+          <tr class="price-row">
+            <td class="feature">What it costs the family</td>
+            <td>Free<small>always, for families</small></td>
+            <td>~$250<small>plus a monthly subscription</small></td>
+            <td>~$140<small>one-time</small></td>
+            <td>$80–$300<small>one-time</small></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
+    <p class="fair-note">Prices are approximate U.S. retail. And in fairness: a warm thing to hold genuinely helps — Yadira works happily alongside a robot cat or a beloved doll. It just shouldn't cost a family hundreds of dollars to feel less alone.</p>
   </div>
 </section>
 
