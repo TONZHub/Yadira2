@@ -1918,7 +1918,7 @@ function AppContent() {
 
       {/* The family photo album — full-screen photobook */}
       <AnimatePresence>
-        {isAlbumOpen && galleryPhotos.length > 0 && (
+        {isAlbumOpen && (
           <PhotoAlbum
             key="photo-album"
             photos={galleryPhotos}
@@ -2167,18 +2167,19 @@ function AppContent() {
                   >
                     📖 Tell me a story
                   </button>
-                  {galleryPhotos.length > 0 && (
-                    <button
-                      id="btn-open-album"
-                      onClick={() => {
-                        setIsAlbumOpen(true);
-                        if (soundFeedback) playSoundCue('pop');
-                      }}
-                      className="px-4 py-2.5 bg-white border border-[#E3DFC2] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#EAE8DD] hover:border-[#C4C09E] transition-all duration-200 shadow-xs"
-                    >
-                      📷 Look at our photos
-                    </button>
-                  )}
+                  {/* Always visible — a feature that appears and disappears is
+                      confusing for the patient and invisible in demos. The
+                      album itself handles the empty state warmly. */}
+                  <button
+                    id="btn-open-album"
+                    onClick={() => {
+                      setIsAlbumOpen(true);
+                      if (soundFeedback) playSoundCue('pop');
+                    }}
+                    className="px-4 py-2.5 bg-[#F2FAF4] border border-[#CEDFCF] text-sm font-bold text-[#3A5D45] rounded-xl hover:bg-[#E4F0E7] hover:border-[#9DBFA8] transition-all duration-200 shadow-xs"
+                  >
+                    📷 Look at our photos
+                  </button>
                   <button
                     onClick={() => handleSendMessage("Help me feel calm, I am a bit anxious.")}
                     disabled={isTyping}
