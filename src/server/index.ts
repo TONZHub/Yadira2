@@ -627,7 +627,7 @@ app.post('/api/chat', async (req, res) => {
     if (isApiKeyMissing) {
       console.log(`[Yadira Backend] Operating in Simulation Mode (No API key detected) - Mode: ${isVivid ? 'vivid' : 'lucid'}`);
       const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
-      return res.json({ reply });
+      return res.json({ reply, mentionedNames: [] });
     }
 
     // Build context-specific prompt augmenting with caregiver configurations and memory bank
@@ -743,11 +743,34 @@ ${COMPANION_GUARDRAILS}`;
       reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
     }
 
-    res.json({ reply: reply || 'I am here with you, dear. How can I help?' });
+    // Mention detection — only in Lucid mode. Build a watchlist of names the
+    // patient might be reaching for, then scan their message for hits. The
+    // client accumulates counts and surfaces a "would you like to invite them?"
+    // nudge to the caregiver once the threshold is crossed.
+    const mentionedNames: string[] = [];
+    if (!isVivid) {
+      const GENERIC = new Set(['Personal', 'Family', 'Home', 'Memory', 'Era', 'Friend', 'Work', 'Church', 'School']);
+      const watchSet = new Set<string>();
+      if (representedPersona) watchSet.add(representedPersona);
+      if (caregiverSettings?.representedPersona) watchSet.add(caregiverSettings.representedPersona);
+      for (const mem of (Array.isArray(memories) ? memories : [])) {
+        const era: string = mem.relationshipOrEra || '';
+        for (const match of era.matchAll(/\b([A-Z][a-z]{1,})\b/g)) {
+          if (!GENERIC.has(match[1])) watchSet.add(match[1]);
+        }
+      }
+      for (const name of watchSet) {
+        if (new RegExp(`\\b${name}\\b`, 'i').test(message)) {
+          mentionedNames.push(name);
+        }
+      }
+    }
+
+    res.json({ reply: reply || 'I am here with you, dear. How can I help?', mentionedNames });
   } catch (err: any) {
     console.warn('[Yadira Backend] OpenRouter chat failed (falling back to Simulation Mode):', err.message || err);
     const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
-    res.json({ reply, fallbackTriggered: true });
+    res.json({ reply, fallbackTriggered: true, mentionedNames: [] });
   }
 });
 

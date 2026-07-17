@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 
 // Digestible messages — one thought per bubble.
@@ -60,7 +60,11 @@ export default function DigestibleMessage({
   footer,
   onChunkRevealed,
 }: DigestibleMessageProps) {
-  const chunks = splitIntoDigestibleChunks(text);
+  // Memoized on text: the reveal timer's effect depends on this array, and a
+  // fresh reference on every parent re-render would clear and re-arm the timer
+  // before it fires — freezing the reveal at the first bubble whenever anything
+  // in the app re-renders faster than the chunk delay (e.g. the 1.5s alert poll).
+  const chunks = useMemo(() => splitIntoDigestibleChunks(text), [text]);
   const [shown, setShown] = useState(animate ? 1 : chunks.length);
 
   useEffect(() => {

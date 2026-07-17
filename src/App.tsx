@@ -389,6 +389,9 @@ function AppContent() {
   // Pro / facility partners are unlimited. Timestamps persist per circle so a
   // refresh doesn't reset them.
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  // How many times a person must be mentioned in a single Lucid session before
+  // Yadira suggests inviting them via Vivid mode.
+  const VIVID_INVITE_THRESHOLD = 3;
   const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number; caregiverChatCount?: number }>('aiUsage', {});
 
   // ---- Ask Yadira: the caregiver's co-pilot chat (Caregiver Pro tooling) ----
@@ -675,6 +678,13 @@ function AppContent() {
   // caregiver's hub shows a banner within ~1.5s and acknowledges to clear.
   const [caregiverAlert, setCaregiverAlertState] = useState<{ active: boolean; at: number }>({ active: false, at: 0 });
 
+  // Vivid invite flow — tracks how many times each name is mentioned by the
+  // patient within the current session (resets on new session / family switch).
+  // When a name crosses VIVID_INVITE_THRESHOLD, a warm banner invites the
+  // caregiver to enable Vivid mode for that person.
+  const [mentionCounts, setMentionCounts] = useState<Record<string, number>>({});
+  const [vividInviteAlert, setVividInviteAlert] = useState<{ name: string; count: number } | null>(null);
+
   const sendCaregiverAlert = (active: boolean) => {
     const state = { active, at: Date.now() };
     setCaregiverAlertState(state);
@@ -702,7 +712,15 @@ function AppContent() {
         const res = await fetch(`/api/caregiver-alert?circle=${encodeURIComponent(getCircleId())}`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (typeof data?.active === 'boolean') setCaregiverAlertState({ active: data.active, at: data.at || 0 });
+        if (typeof data?.active === 'boolean') {
+          // Bail out when nothing changed — a fresh object every poll tick
+          // re-renders the whole app every 1.5s for no reason.
+          setCaregiverAlertState((prev) =>
+            prev.active === data.active && prev.at === (data.at || 0)
+              ? prev
+              : { active: data.active, at: data.at || 0 }
+          );
+        }
       } catch { /* best-effort */ }
     };
     poll();
@@ -741,6 +759,22 @@ function AppContent() {
     });
     speakText(comfort);
     if (soundFeedback) playSoundCue('chime');
+  };
+
+  // Caregiver accepts the Vivid invite for a person the patient keeps mentioning.
+  const handleAcceptVividInvite = (personName: string) => {
+    // If the persona isn't already set to this person, update it first so the
+    // greeting and voice pick up the right name immediately.
+    if (representedPersona !== personName) {
+      setRepresentedPersona(personName);
+    }
+    setPatientMode('vivid');
+    setVividInviteAlert(null);
+    setMentionCounts({});
+    toastSuccess(
+      `${personName} has joined`,
+      `Vivid mode is now active — the companion speaks as ${personName}, the way ${patientName || 'they'} remembers them.`
+    );
   };
 
   // New Memory Modal State
@@ -886,6 +920,9 @@ function AppContent() {
     if (prevModeRef.current !== patientMode) {
       prevModeRef.current = patientMode;
       if (patientMode === 'vivid') {
+        // Switching to Vivid — the invite was answered (or toggled manually).
+        setMentionCounts({});
+        setVividInviteAlert(null);
         const thread = personaFileRef.current?.threadToPickUp || '';
         const text = thread
           ? `Hello, love. It's me, ${representedPersona || 'Beth'}. ${thread}`
@@ -1074,6 +1111,8 @@ function AppContent() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
     lastReflectedCountRef.current = 0;
+    setMentionCounts({});
+    setVividInviteAlert(null);
     toastSuccess('New session started', `${persona} kept everything from the last visit.`);
   };
 
@@ -1099,6 +1138,8 @@ function AppContent() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }]);
     lastReflectedCountRef.current = 0;
+    setMentionCounts({});
+    setVividInviteAlert(null);
 
     // A loaded family is intentional content — don't let the first-login
     // auto-seed overwrite it on the next mount.
@@ -1345,6 +1386,23 @@ function AppContent() {
 
       appendChatMessage(yadiraReply);
       speakText(data.reply);
+
+      // Vivid invite: accumulate mention counts from this message. Only fires
+      // in Lucid mode and only once per session per threshold crossing.
+      if (data.mentionedNames && data.mentionedNames.length > 0 && patientMode !== 'vivid') {
+        setMentionCounts(prev => {
+          const next = { ...prev };
+          let newAlert: { name: string; count: number } | null = null;
+          for (const name of data.mentionedNames as string[]) {
+            next[name] = (next[name] || 0) + 1;
+            if (next[name] >= VIVID_INVITE_THRESHOLD && !vividInviteAlert && !newAlert) {
+              newAlert = { name, count: next[name] };
+            }
+          }
+          if (newAlert) setVividInviteAlert(newAlert);
+          return next;
+        });
+      }
     } catch (err: any) {
       console.error('Chat error:', err);
       const isVivid = patientMode === 'vivid';
@@ -2318,6 +2376,45 @@ function AppContent() {
                   >
                     I'm on it — clear alert
                   </button>
+                </motion.div>
+              )}
+
+              {/* Vivid invite — surfaces when a person is mentioned VIVID_INVITE_THRESHOLD times */}
+              {vividInviteAlert && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-[#EAF3EC] border-2 border-[#5C8D71] rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-md"
+                >
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="p-2.5 rounded-xl bg-[#D6EBD9] text-[#3A5D45] shrink-0">
+                      <HeartHandshake className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-base font-extrabold text-[#1E3A2A]">
+                        {patientName || 'Your loved one'} has mentioned {vividInviteAlert.name} {vividInviteAlert.count} time{vividInviteAlert.count !== 1 ? 's' : ''} today.
+                      </p>
+                      <p className="text-sm text-[#3A5D45] mt-0.5">
+                        Would you like to invite {vividInviteAlert.name} into the conversation? Yadira can speak as {vividInviteAlert.name}, the way {patientName || 'they'} remembers them.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleAcceptVividInvite(vividInviteAlert.name)}
+                      className="px-5 py-3 bg-[#3A5D45] hover:bg-[#2B4633] text-white font-bold rounded-xl transition-all active:scale-95 text-sm"
+                    >
+                      Invite {vividInviteAlert.name} to chat
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVividInviteAlert(null)}
+                      className="px-5 py-3 bg-white hover:bg-[#F0F7F2] text-[#3A5D45] font-semibold border border-[#CEDFCF] rounded-xl transition-all active:scale-95 text-sm"
+                    >
+                      Not right now
+                    </button>
+                  </div>
                 </motion.div>
               )}
 
