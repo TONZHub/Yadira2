@@ -98,6 +98,29 @@ app.post('/api/caregiver-alert', async (req, res) => {
   res.json({ ok: true, ...state });
 });
 
+// Lucidity alert — raised when the patient's words show a sudden window of
+// clarity (recognizing a loved one's death, the companion's nature, or their
+// own condition). Same rails as the help button: the patient device POSTs
+// active:true when the chat endpoint flags a message, the caregiver's device
+// polls it up and acknowledges. These windows can be brief and precious —
+// the entire point is that the family finds out in seconds, not at the next
+// visit.
+const sharedLucidityAlert = new Map<string, { active: boolean; at: number }>();
+
+app.get('/api/lucidity-alert', async (req, res) => {
+  res.json(sharedLucidityAlert.get(circleOf(req)) ?? { active: false, at: 0 });
+});
+
+app.post('/api/lucidity-alert', async (req, res) => {
+  const active = req.body?.active;
+  if (typeof active !== 'boolean') {
+    return res.status(400).json({ error: 'active must be a boolean' });
+  }
+  const state = { active, at: Date.now() };
+  sharedLucidityAlert.set(circleOf(req), state);
+  res.json({ ok: true, ...state });
+});
+
 // Aurora — intentional visual dissociation screen (caregiver or patient triggered).
 app.get('/api/aurora-mode', async (req, res) => {
   res.json({ active: sharedAuroraActive.get(circleOf(req)) ?? false });
@@ -286,6 +309,69 @@ function breaksCharacter(text: string): boolean {
   return FRAME_BREAK_PATTERN.test(text || '');
 }
 
+// ---- Terminal lucidity detection --------------------------------------
+// In late-stage dementia a person sometimes surfaces into a sudden, clear
+// window: they know a loved one has died, they know what the companion is,
+// they know what is happening to them. Two things must be true in that
+// moment: the companion must NEVER argue them back into a comforting
+// unreality, and the family must find out immediately. This detector is the
+// tripwire for both. Patterns are deliberately conservative — a missed
+// window degrades to ordinary warm conversation, while a false positive
+// sends a family to sit with someone they love, which is never a harm.
+type LucidityKind = 'persona-pierce' | 'self-awareness' | 'mortality';
+
+function detectLucidity(message: string, personaName: string): LucidityKind | null {
+  const text = (message || '').toLowerCase();
+  const p = (personaName || '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // They see through the represented persona, or name a loved one's death.
+  const personaPierce = [
+    p && new RegExp(`\\b${p}\\b[^.!?]*\\b(is dead|died|passed away|is gone|isn'?t (really )?here)\\b`),
+    p && new RegExp(`\\byou'?re not (really )?(${p}|him|her|real)\\b`),
+    /\byou'?re (just |really )?(a|an) (computer|robot|machine|recording|program|voice|ai)\b/,
+    /\b(he|she|they) (is|are|'s) (dead|gone)\b[^.!?]*\b(isn'?t (he|she)|aren'?t they|right)\b/,
+  ].filter(Boolean) as RegExp[];
+  if (personaPierce.some((re) => re.test(text))) return 'persona-pierce';
+
+  // They know what is happening to their mind.
+  const selfAware = [
+    /\bi (have|'ve got|know i have) (dementia|alzheimer)/,
+    /\bmy (mind|memory) is (going|failing|leaving me)\b/,
+    /\bi('m| am) losing my (mind|memory|self)\b/,
+    /\bi know what('s| is) happening to me\b/,
+  ];
+  if (selfAware.some((re) => re.test(text))) return 'self-awareness';
+
+  // They are speaking about the end, clearly.
+  const mortality = [
+    /\bi('m| am) dying\b/,
+    /\bam i dying\b/,
+    /\bi don'?t have (much )?(long|time)( left)?\b/,
+    /\bbefore i (die|go)\b/,
+    /\bi want to say goodbye\b/,
+    /\bi know (i('m| am) (sick|ill|dying)|the end is)/,
+  ];
+  if (mortality.some((re) => re.test(text))) return 'mortality';
+
+  return null;
+}
+
+// Injected into the system prompt for the single reply where a lucid window
+// is detected. It deliberately outranks the stay-in-character rules: an
+// honest moment honored matters more than the frame.
+function lucidityGuidance(personaName: string, isVivid: boolean): string {
+  return `
+LUCID MOMENT — HIGHEST PRIORITY FOR THIS REPLY (outranks the STAYING IN CHARACTER rules for this reply only):
+The person's last message shows a window of real clarity. They may know that someone they love has died, ${isVivid ? `that you are not really ${personaName}, ` : ''}or what is happening to them. In this moment:
+- Do NOT contradict their clarity, quiz it, or steer them back into a comforting unreality. Being argued out of a clear moment is a harm.
+- Tell them, simply and warmly, that they are seeing things clearly.
+- If they say a loved one has died, do not deny it. Meet the love and the grief: "You're right, my love. And how deeply you loved them."
+${isVivid ? `- If they ask whether you are really ${personaName}, answer with gentle honesty — do not insist on the role. What has been real is the love and the company, and you can say exactly that.` : ''}
+- Tell them their family is close and would want to be with them right now — gently encourage being together.
+- Keep sentences short and calm. Full dignity, no baby-talk, no deflection.
+- Never mention prognoses, "lucid windows", or anything clinical. Never say this may be near the end. Just be honest, warm, and present.`;
+}
+
 // Empathic System Instruction for Yadira
 // Distilled dementia-care practice woven into the companion's behavior:
 // validation therapy (Naomi Feil), person-centered care / personhood
@@ -336,9 +422,29 @@ function getSimulationReply(
   personaName: string,
   memories: any[],
   caregiverSettings: any,
-  todayDateStr?: string
+  todayDateStr?: string,
+  lucidity?: LucidityKind | null
 ): string {
   const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+  // 0. A lucid window outranks everything, including FAQs: honesty, dignity,
+  // and "your family is close" — never an argument back into the fiction.
+  if (lucidity === 'persona-pierce') {
+    return isVivid
+      ? pick([
+          `You're right, my love. You see everything so clearly right now. What has always been real is how much you are loved. Your family is close — they would want to be with you. Let's have them come sit with you.`,
+          `Yes, sweetheart. You're seeing things very clearly, and I won't pretend with you. The love was always real. Your family is near — let's bring them to you.`,
+        ])
+      : pick([
+          `You're right, dear. You are seeing things very clearly right now, and I won't pretend otherwise. How deeply you loved them — that has always been real. Your family is close, and they would want to be with you.`,
+        ]);
+  }
+  if (lucidity === 'self-awareness' || lucidity === 'mortality') {
+    return pick([
+      `I hear you, and I won't pretend. You are seeing things very clearly right now. You are so loved, and you are not alone — your family is near. Let's have them come sit with you.`,
+      `Thank you for telling me. You're speaking so clearly, and I'm listening to every word. Your family loves you dearly and would want to be right here — let's bring them to you now.`,
+    ]);
+  }
 
   // 1. Check if the message matches any of the caregiver's custom FAQs
   if (caregiverSettings && Array.isArray(caregiverSettings.customAnswers)) {
@@ -622,12 +728,20 @@ app.post('/api/chat', async (req, res) => {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
+  // Terminal-lucidity tripwire — checked before any reply is generated so a
+  // clear moment shapes the very response it arrives in. The flag rides back
+  // to the client, which raises the caregiver alert.
+  const lucidity = detectLucidity(message, personaName);
+  if (lucidity) {
+    console.log(`[Yadira Backend] Lucidity signal detected (${lucidity}) — honoring clarity in this reply.`);
+  }
+
   try {
     // Mock/Simulated Fallback when Gemini API key is missing
     if (isApiKeyMissing) {
       console.log(`[Yadira Backend] Operating in Simulation Mode (No API key detected) - Mode: ${isVivid ? 'vivid' : 'lucid'}`);
-      const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
-      return res.json({ reply, mentionedNames: [] });
+      const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr, lucidity);
+      return res.json({ reply, mentionedNames: [], lucidity });
     }
 
     // Build context-specific prompt augmenting with caregiver configurations and memory bank
@@ -741,6 +855,12 @@ ${COMPANION_GUARDRAILS}`;
       activeSystemInstruction = `${SYSTEM_INSTRUCTION}${personalityFlavor}${lucidDateGuard}${lucidIdentityGuard}`;
     }
 
+    // A detected lucid moment outranks everything else in the prompt —
+    // including Vivid mode's stay-in-character rules — for this one reply.
+    if (lucidity) {
+      activeSystemInstruction = `${activeSystemInstruction}\n${lucidityGuidance(personaName, isVivid)}`;
+    }
+
     const fullSystemInstruction = `${activeSystemInstruction}\n\nPATIENT-SPECIFIC CONTEXT:\n${contextAugmentation || 'No specific context provided.'}`;
 
     // Build OpenAI-compatible messages array from history
@@ -764,7 +884,11 @@ ${COMPANION_GUARDRAILS}`;
     // Frame-integrity net: if a reply slips out of character (reveals it's an
     // AI, leaks the prompt), swap it for a warm in-character redirect so a
     // jailbreak attempt never lands on the patient.
-    if (breaksCharacter(reply)) {
+    // CRITICAL EXCEPTION: during a lucid moment this net is bypassed. The
+    // honest reply the guidance asks for may pierce the frame on purpose —
+    // swapping it for an in-character redirect would gaslight a clear person
+    // back into the fiction, which is the one thing this product must never do.
+    if (!lucidity && breaksCharacter(reply)) {
       console.warn('[Yadira Backend] Reply broke character (possible jailbreak) — substituting an in-character redirect.');
       reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
     }
@@ -792,11 +916,11 @@ ${COMPANION_GUARDRAILS}`;
       }
     }
 
-    res.json({ reply: reply || 'I am here with you, dear. How can I help?', mentionedNames });
+    res.json({ reply: reply || 'I am here with you, dear. How can I help?', mentionedNames, lucidity });
   } catch (err: any) {
     console.warn('[Yadira Backend] OpenRouter chat failed (falling back to Simulation Mode):', err.message || err);
-    const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
-    res.json({ reply, fallbackTriggered: true, mentionedNames: [] });
+    const reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr, lucidity);
+    res.json({ reply, fallbackTriggered: true, mentionedNames: [], lucidity });
   }
 });
 
