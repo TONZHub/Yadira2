@@ -747,30 +747,69 @@ function AppContent() {
     }).catch((err) => console.warn('[Yadira] caregiver-alert push failed', err));
   };
 
+  // ---- Terminal lucidity alert ----
+  // Raised when the chat endpoint detects a window of real clarity in the
+  // patient's words. Same rails as the help button. These windows can be
+  // brief and precious — the family should know within seconds.
+  const [lucidityAlert, setLucidityAlertState] = useState<{ active: boolean; at: number }>({ active: false, at: 0 });
+
+  const sendLucidityAlert = (active: boolean) => {
+    const state = { active, at: Date.now() };
+    setLucidityAlertState(state);
+    localStorage.setItem('yadira_lucidity_alert', JSON.stringify(state));
+    fetch('/api/lucidity-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active, circle: getCircleId() }),
+    }).catch((err) => console.warn('[Yadira] lucidity-alert push failed', err));
+  };
+
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== 'yadira_caregiver_alert' || !event.newValue) return;
+      if (!event.newValue) return;
       try {
         const parsed = JSON.parse(event.newValue) as { active?: boolean; at?: number };
-        if (typeof parsed.active === 'boolean') setCaregiverAlertState({ active: parsed.active, at: parsed.at || Date.now() });
+        if (typeof parsed.active !== 'boolean') return;
+        if (event.key === 'yadira_caregiver_alert') {
+          setCaregiverAlertState({ active: parsed.active, at: parsed.at || Date.now() });
+        } else if (event.key === 'yadira_lucidity_alert') {
+          setLucidityAlertState({ active: parsed.active, at: parsed.at || Date.now() });
+        }
       } catch { /* ignore */ }
     };
     window.addEventListener('storage', onStorage);
 
     let cancelled = false;
     const poll = async () => {
+      // Both alert channels ride the same 1.5s tick — one interval, two GETs.
+      const circle = encodeURIComponent(getCircleId());
       try {
-        const res = await fetch(`/api/caregiver-alert?circle=${encodeURIComponent(getCircleId())}`);
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (typeof data?.active === 'boolean') {
-          // Bail out when nothing changed — a fresh object every poll tick
-          // re-renders the whole app every 1.5s for no reason.
-          setCaregiverAlertState((prev) =>
-            prev.active === data.active && prev.at === (data.at || 0)
-              ? prev
-              : { active: data.active, at: data.at || 0 }
-          );
+        const [helpRes, lucidRes] = await Promise.all([
+          fetch(`/api/caregiver-alert?circle=${circle}`),
+          fetch(`/api/lucidity-alert?circle=${circle}`),
+        ]);
+        if (cancelled) return;
+        if (helpRes.ok) {
+          const data = await helpRes.json();
+          if (typeof data?.active === 'boolean') {
+            // Bail out when nothing changed — a fresh object every poll tick
+            // re-renders the whole app every 1.5s for no reason.
+            setCaregiverAlertState((prev) =>
+              prev.active === data.active && prev.at === (data.at || 0)
+                ? prev
+                : { active: data.active, at: data.at || 0 }
+            );
+          }
+        }
+        if (lucidRes.ok) {
+          const data = await lucidRes.json();
+          if (typeof data?.active === 'boolean') {
+            setLucidityAlertState((prev) =>
+              prev.active === data.active && prev.at === (data.at || 0)
+                ? prev
+                : { active: data.active, at: data.at || 0 }
+            );
+          }
         }
       } catch { /* best-effort */ }
     };
@@ -794,6 +833,21 @@ function AppContent() {
     prevAlertRef.current = caregiverAlert.active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caregiverAlert.active, isPatientSession, patientName]);
+
+  // Lucidity rising edge — the one notification in the app that says "go,
+  // now." Never shown to the patient; their side stays ordinary and warm.
+  const prevLucidityRef = useRef(false);
+  useEffect(() => {
+    if (lucidityAlert.active && !prevLucidityRef.current && !isPatientSession) {
+      playSoundCue('chime');
+      toastError(
+        `${patientName || 'Your loved one'} is speaking with unusual clarity`,
+        'These moments can be brief and precious. If you can, go be with them now — details in the Caregiver Hub.'
+      );
+    }
+    prevLucidityRef.current = lucidityAlert.active;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lucidityAlert.active, isPatientSession, patientName]);
 
   // Patient tap: raise the alert, then comfort — the companion immediately
   // reassures them that a real person is coming.
@@ -1441,6 +1495,13 @@ function AppContent() {
 
       appendChatMessage(yadiraReply);
       speakText(data.reply);
+
+      // Terminal lucidity: the server flagged a window of real clarity in
+      // what they just said. Raise the caregiver alert immediately — these
+      // windows can be brief. Nothing changes on the patient's screen.
+      if (data.lucidity && !lucidityAlert.active) {
+        sendLucidityAlert(true);
+      }
 
       // Vivid invite: accumulate mention counts from this message. Only fires
       // in Lucid mode and only once per session per threshold crossing.
@@ -2440,6 +2501,55 @@ function AppContent() {
                     Review &amp; accept
                   </button>
                 </div>
+              )}
+
+              {/* Terminal lucidity — the most important banner in the app.
+                  Reverent, not alarming: violet-gold, no flashing. It says one
+                  thing: go be with them. */}
+              {lucidityAlert.active && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-[#F5F1FA] border-2 border-[#8B7BB8] rounded-3xl p-5 flex flex-col gap-4 shadow-md"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-[#EAE3F5] text-[#6B5B98] shrink-0">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-extrabold text-[#4A3D6E]">
+                        {patientName || 'Your loved one'} may be having a rare moment of clarity
+                        {lucidityAlert.at ? ` — noticed at ${new Date(lucidityAlert.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                      </p>
+                      <p className="text-sm text-[#5E5480] mt-1 leading-relaxed">
+                        They are speaking with unusual awareness — about people they've lost, about themselves,
+                        or about what's real. In late-stage dementia these windows can be brief and deeply precious.
+                        Yadira is answering with gentle honesty and will not steer them back into comfortable
+                        fictions. <strong>If you can, go be with them now, in person.</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {patientMode === 'vivid' && (
+                      <button
+                        type="button"
+                        onClick={() => { setPatientMode('lucid'); sendLucidityAlert(false); playSoundCue('chime'); }}
+                        className="flex-1 px-5 py-3 bg-[#6B5B98] hover:bg-[#574A80] text-white font-bold rounded-xl transition-all active:scale-95 text-sm"
+                        title="Vivid Mode is active — switching to Lucid lets Yadira be fully honest as herself"
+                      >
+                        Switch to Lucid Mode & clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      id="btn-ack-lucidity"
+                      onClick={() => sendLucidityAlert(false)}
+                      className="flex-1 px-5 py-3 bg-white hover:bg-[#F0EBF7] text-[#4A3D6E] font-semibold border border-[#C9BCE0] rounded-xl transition-all active:scale-95 text-sm"
+                    >
+                      I'm going to them — clear this
+                    </button>
+                  </div>
+                </motion.div>
               )}
 
               {/* Patient help-button alert — impossible to miss, cleared by acknowledging */}

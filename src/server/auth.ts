@@ -18,7 +18,9 @@ export const authMiddleware = async (req: AuthenticatedRequest, res: Response, n
     // both surfaces — without this exemption its cross-device sync silently 401s.
     // /caregiver-alert is the patient's help button — it must NEVER fail on a
     // stale token. Boolean + timestamp only, same risk profile as aurora-mode.
-    if (req.path === '/shared-mode' || req.path === '/tts' || req.path === '/aurora-mode' || req.path === '/caregiver-alert') {
+    // /lucidity-alert has the identical risk profile — and a family missing a
+    // brief lucid window because of an expired token would be unforgivable.
+    if (req.path === '/shared-mode' || req.path === '/tts' || req.path === '/aurora-mode' || req.path === '/caregiver-alert' || req.path === '/lucidity-alert') {
       return next();
     }
 
