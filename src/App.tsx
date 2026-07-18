@@ -28,7 +28,9 @@ import {
   LogOut,
   Phone,
   PhoneOff,
-  Tent
+  Tent,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
@@ -178,6 +180,47 @@ function AppContent() {
       setActiveTab('patient');
     }
   }, [isPatientSession, activeTab]);
+
+  // ---- Care Lock ----
+  // Born from a real incident: a grandmother trying to zoom wiped the family's
+  // data because a stray touch reached a caregiver control. When locked, this
+  // DEVICE is pinned to the patient view — the tab switcher and logout vanish,
+  // so no destructive control is reachable. Unlocking requires pressing and
+  // holding the lock for 3 seconds plus a confirm, which no accidental gesture
+  // can perform. Deliberately per-device (localStorage, not the synced store):
+  // locking the patient's tablet must never lock the caregiver's own phone.
+  const [careLocked, setCareLocked] = useState(() => {
+    try { return localStorage.getItem('yadira_care_lock') === '1'; } catch { return false; }
+  });
+  const setCareLock = (locked: boolean) => {
+    setCareLocked(locked);
+    try { localStorage.setItem('yadira_care_lock', locked ? '1' : '0'); } catch { /* non-fatal */ }
+  };
+  useEffect(() => {
+    if (careLocked && activeTab !== 'patient') setActiveTab('patient');
+  }, [careLocked, activeTab]);
+  // Press-and-hold unlock plumbing
+  const unlockHoldRef = useRef<number | null>(null);
+  const [unlockHolding, setUnlockHolding] = useState(false);
+  const beginUnlockHold = () => {
+    if (unlockHoldRef.current) return;
+    setUnlockHolding(true);
+    unlockHoldRef.current = window.setTimeout(() => {
+      unlockHoldRef.current = null;
+      setUnlockHolding(false);
+      if (window.confirm('Unlock caregiver controls on this device?')) {
+        setCareLock(false);
+        playSoundCue('chime');
+      }
+    }, 3000);
+  };
+  const cancelUnlockHold = () => {
+    if (unlockHoldRef.current) {
+      window.clearTimeout(unlockHoldRef.current);
+      unlockHoldRef.current = null;
+    }
+    setUnlockHolding(false);
+  };
 
   // Caregiver Config State — now persisted (was lost on refresh before)
   const [profile, setProfile] = useStoreDoc('profile', DEFAULT_PROFILE);
@@ -1225,6 +1268,13 @@ function AppContent() {
   // the profile and all content, clears the persona file and conversation so
   // the new family starts clean, and syncs the mode across devices.
   const applyFamilyPack = (pack: FamilyPackApply, label: string) => {
+    // Final gate on the single most destructive action in the app — loading a
+    // family replaces the profile, memories, FAQs, logs, and routine. A real
+    // incident (a stray zoom gesture) once wiped a family's data; this
+    // confirm plus Care Lock makes that path unrepeatable.
+    if (!window.confirm(`Load "${label}" into this care circle? This REPLACES the current profile, memories, FAQs, logs, and routine.`)) {
+      return;
+    }
     setProfile(pack.profile);
     setMemories(pack.memories);
     setFaqs(pack.faqs);
@@ -1872,8 +1922,9 @@ function AppContent() {
         )}
 
         <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-2 flex-wrap sm:ml-auto">
-          {/* Global Tab Switcher */}
-          {!isPatientSession && (
+          {/* Global Tab Switcher — hidden entirely under Care Lock so a stray
+              gesture can never reach the Hub's destructive controls */}
+          {!isPatientSession && !careLocked && (
             <div className="tab-switcher flex flex-wrap gap-1 p-1 bg-[#F4F1EA] rounded-xl border border-[#E3DFC2] w-full sm:w-auto">
               <button
                 id="tab-patient"
@@ -1926,23 +1977,55 @@ function AppContent() {
             </button>
           )}
 
-          {/* Log out — returns to the role-selection/login screen. Confirmed
-              first so a patient can't accidentally end their own session. */}
+          {/* Care Lock — tap to lock this device to the patient view; press
+              and hold 3s to unlock. A confused zoom gesture can't do either
+              by accident. */}
           <button
-            id="btn-logout"
-            onClick={async () => {
-              const message = isPatientSession
-                ? 'Return to the Yadira login screen? (Caregiver use only)'
-                : 'Log out of Yadira and return to the login screen?';
-              if (window.confirm(message)) {
-                await logout();
+            id="btn-care-lock"
+            onClick={() => {
+              if (careLocked) return; // unlocking is hold-only
+              if (window.confirm(`Lock this screen to ${patientName || 'the patient'}'s view? Caregiver controls will be hidden on this device. To unlock later, press and HOLD the lock for 3 seconds.`)) {
+                setCareLock(true);
+                setActiveTab('patient');
+                playSoundCue('chime');
+                toastSuccess('Care Lock on', 'This device now shows only the companion. Press and hold the lock for 3 seconds to unlock.');
               }
             }}
-            className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-red-600 hover:border-red-200 transition-all"
-            title="Log out and return to the login screen"
+            onPointerDown={() => { if (careLocked) beginUnlockHold(); }}
+            onPointerUp={cancelUnlockHold}
+            onPointerLeave={cancelUnlockHold}
+            className={`p-2 sm:p-2.5 rounded-xl border transition-all select-none ${
+              careLocked
+                ? unlockHolding
+                  ? 'border-[#3A5D45] bg-[#E8F1EB] text-[#3A5D45] scale-110'
+                  : 'border-[#CEDFCF] bg-[#F2FAF4] text-[#3A5D45]'
+                : 'border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-[#3A5D45] hover:border-[#CEDFCF]'
+            }`}
+            title={careLocked ? 'Care Lock is on — press and hold 3 seconds to unlock' : 'Lock this device to the patient view'}
           >
-            <LogOut className="w-5 h-5" />
+            {careLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
           </button>
+
+          {/* Log out — returns to the role-selection/login screen. Confirmed
+              first so a patient can't accidentally end their own session.
+              Hidden under Care Lock: ending the session IS destructive. */}
+          {!careLocked && (
+            <button
+              id="btn-logout"
+              onClick={async () => {
+                const message = isPatientSession
+                  ? 'Return to the Yadira login screen? (Caregiver use only)'
+                  : 'Log out of Yadira and return to the login screen?';
+                if (window.confirm(message)) {
+                  await logout();
+                }
+              }}
+              className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-red-600 hover:border-red-200 transition-all"
+              title="Log out and return to the login screen"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </header>
 
