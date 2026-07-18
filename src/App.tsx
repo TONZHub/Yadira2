@@ -30,7 +30,9 @@ import {
   PhoneOff,
   Tent,
   Lock,
-  Unlock
+  Unlock,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
@@ -220,6 +222,37 @@ function AppContent() {
       unlockHoldRef.current = null;
     }
     setUnlockHolding(false);
+  };
+
+  // ---- Full screen ----
+  // Hides the browser's own chrome — address bar, tabs — which are the last
+  // stray-tap targets left once Care Lock removes the in-app ones. State is
+  // tracked via the fullscreenchange event because Esc exits behind our back.
+  const fullscreenSupported =
+    typeof document !== 'undefined' &&
+    !!(document.documentElement.requestFullscreen || (document.documentElement as any).webkitRequestFullscreen);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () =>
+      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
+  }, []);
+  const enterFullscreen = () => {
+    const el: any = document.documentElement;
+    try {
+      (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.())?.catch?.(() => {});
+    } catch { /* unsupported or denied — non-fatal */ }
+  };
+  const exitFullscreen = () => {
+    const d: any = document;
+    try {
+      (d.exitFullscreen?.() ?? d.webkitExitFullscreen?.())?.catch?.(() => {});
+    } catch { /* ignore */ }
   };
 
   // Caregiver Config State — now persisted (was lost on refresh before)
@@ -1977,6 +2010,19 @@ function AppContent() {
             </button>
           )}
 
+          {/* Full screen — hides the browser's address bar and tabs. Pairs
+              with Care Lock for a clean, kiosk-like patient screen. */}
+          {fullscreenSupported && (
+            <button
+              id="btn-fullscreen"
+              onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())}
+              className="p-2 sm:p-2.5 rounded-xl border border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-[#3A5D45] hover:border-[#CEDFCF] transition-all"
+              title={isFullscreen ? 'Exit full screen' : 'Full screen — hide the browser bars'}
+            >
+              {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+            </button>
+          )}
+
           {/* Care Lock — tap to lock this device to the patient view; press
               and hold 3s to unlock. A confused zoom gesture can't do either
               by accident. */}
@@ -1987,6 +2033,9 @@ function AppContent() {
               if (window.confirm(`Lock this screen to ${patientName || 'the patient'}'s view? Caregiver controls will be hidden on this device. To unlock later, press and HOLD the lock for 3 seconds.`)) {
                 setCareLock(true);
                 setActiveTab('patient');
+                // Locking is a kiosk gesture — go full screen too, so the
+                // browser's own bars stop being stray-tap targets.
+                enterFullscreen();
                 playSoundCue('chime');
                 toastSuccess('Care Lock on', 'This device now shows only the companion. Press and hold the lock for 3 seconds to unlock.');
               }
