@@ -269,7 +269,8 @@ function AppContent() {
     representedVoiceId,
     driftTimeoutSeconds,
     driftEnabled,
-    companionPersonality
+    companionPersonality,
+    yadiraVoice
   } = profile;
   const profileRef = useRef(profile);
   profileRef.current = profile;
@@ -308,6 +309,7 @@ function AppContent() {
   const setRepresentedPersona = (v: string) => setProfile({ ...profile, representedPersona: v });
   const setCompanionPersonality = (v: NonNullable<typeof profile.companionPersonality>) =>
     setProfile({ ...profile, companionPersonality: v });
+  const setYadiraVoice = (v: 'female' | 'male') => setProfile({ ...profile, yadiraVoice: v });
   const setRepresentedVoiceId = (v: string) => setProfile({ ...profile, representedVoiceId: v });
   const setDriftTimeoutSeconds = (v: number) => setProfile({ ...profile, driftTimeoutSeconds: v });
   const setDriftEnabled = (v: boolean) => setProfile({ ...profile, driftEnabled: v });
@@ -503,6 +505,14 @@ function AppContent() {
   // How many times a person must be mentioned in a single Lucid session before
   // Yadira suggests inviting them via Vivid mode.
   const VIVID_INVITE_THRESHOLD = 3;
+
+  // Yadira's own Inworld voices (Lucid mode). Vivid mode always speaks with
+  // the represented persona's voice — Yadira and the loved one must never
+  // share a voice, or the identities blur for the patient.
+  const YADIRA_VOICES: Record<'female' | 'male', string> = {
+    female: 'zippy-pecan-9151__design-voice-6cd2e59a',
+    male: 'zippy-pecan-9151__design-voice-457ee57f',
+  };
   const [aiUsage, setAiUsage] = useStoreDoc<{ lastInsightsAt?: number; lastRoutineAt?: number; caregiverChatCount?: number }>('aiUsage', {});
 
   // ---- Ask Yadira: the caregiver's co-pilot chat (Caregiver Pro tooling) ----
@@ -1378,7 +1388,12 @@ function AppContent() {
     // First try Inworld proxy endpoint (authenticated fetch), then fall back to browser TTS.
     void (async () => {
       try {
-        const selectedVoice = representedVoiceId || 'Sarah';
+        // Vivid: the persona's configured voice. Lucid: Yadira's own voice
+        // (caregiver-chosen female/male) — she must never borrow the persona's.
+        const p = profileRef.current;
+        const selectedVoice = p.patientMode === 'vivid'
+          ? (p.representedVoiceId || 'Sarah')
+          : YADIRA_VOICES[p.yadiraVoice || 'female'];
         const token = localStorage.getItem('yadira_token');
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -2988,6 +3003,47 @@ function AppContent() {
                               </span>
                               <span className="text-[10px] leading-tight block mt-0.5 text-[#7E7D76]">
                                 {p.blurb}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Yadira's voice — hers alone. The persona's voice (Vivid
+                        mode) is configured separately so the two identities
+                        never share a sound. */}
+                    <div className="mt-4">
+                      <label className="block text-xs font-extrabold uppercase tracking-wider text-[#5E5D57] mb-1">
+                        Yadira's Voice
+                      </label>
+                      <span className="text-[10px] text-[#7E7D76] leading-tight block mb-2.5">
+                        The voice Yadira speaks with in Lucid Mode. {representedPersona || 'The loved one'}'s Vivid voice is set separately below.
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { key: 'female', label: '🎙️ Female voice', blurb: 'Warm and steady' },
+                          { key: 'male', label: '🎙️ Male voice', blurb: 'Calm and kind' },
+                        ] as const).map((v) => {
+                          const active = (yadiraVoice || 'female') === v.key;
+                          return (
+                            <button
+                              key={v.key}
+                              type="button"
+                              id={`btn-yadira-voice-${v.key}`}
+                              onClick={() => { setYadiraVoice(v.key); playSoundCue('pop'); }}
+                              aria-pressed={active}
+                              className={`p-3 rounded-xl border text-left transition-all duration-200 ${
+                                active
+                                  ? 'bg-[#E8F1EB] border-[#3A5D45] ring-2 ring-[#3A5D45]/10 scale-[1.01]'
+                                  : 'bg-[#FCFAF5] border-[#E3DFC2] hover:bg-[#EAE8DD]'
+                              }`}
+                            >
+                              <span className={`text-xs block font-bold ${active ? 'text-[#3A5D45]' : 'text-[#2C2C2A]'}`}>
+                                {v.label}
+                              </span>
+                              <span className="text-[10px] leading-tight block mt-0.5 text-[#7E7D76]">
+                                {v.blurb}
                               </span>
                             </button>
                           );

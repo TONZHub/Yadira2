@@ -117,6 +117,8 @@ export interface CaregiverProfile {
   driftTimeoutSeconds: number;
   driftEnabled: boolean;
   companionPersonality?: CompanionPersonality;
+  /** Yadira's own voice in Lucid mode — Vivid mode uses representedVoiceId. */
+  yadiraVoice?: 'female' | 'male';
 }
 
 export const DEFAULT_PROFILE: CaregiverProfile = {
@@ -133,4 +135,5 @@ export const DEFAULT_PROFILE: CaregiverProfile = {
   driftTimeoutSeconds: 25,
   driftEnabled: true,
   companionPersonality: 'gentle',
+  yadiraVoice: 'female',
 };
