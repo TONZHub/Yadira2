@@ -42,10 +42,13 @@ const gcpLocation = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
 const enterpriseApiKey = process.env.GEMINI_ENTERPRISE_API_KEY;
 const useEnterprisePlatform = !!gcpProject || !!enterpriseApiKey;
 
-// Pinned to poolside/laguna-xs-2.1:free — field-tested against the Beth persona
-// (see notion_notes.md "The Populated File Test") and holds the YAML as a living
-// reasoning document rather than a script.
-const OPENROUTER_MODEL = 'poolside/laguna-xs-2.1:free';
+// Default: the paid tier of poolside/laguna-xs-2.1 — the same model that was
+// field-tested against the Beth persona (see notion_notes.md "The Populated
+// File Test"; it holds the YAML as a living reasoning document rather than a
+// script), minus the free tier's aggressive rate limits now that the account
+// carries credits. Overridable via OPENROUTER_MODEL so trying e.g.
+// poolside/laguna-m.1 (the flagship) is a Render env change, not a deploy.
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'poolside/laguna-xs-2.1';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
 // Cross-device sync state, keyed by care circle. One family toggling Vivid
 // or Aurora must never flip the screens of another paying customer — the
