@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Mic, MicOff, Volume2, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useToast } from '../lib/ToastContext';
 
@@ -9,28 +9,45 @@ interface VoiceInputProps {
   isPremium?: boolean;
 }
 
+// Voice dictation — Whisper-grade with a graceful ladder.
+// ------------------------------------------------------------------
+// While recording, the browser's Web Speech API paints live captions so
+// the patient sees their words appear as they talk. The actual audio is
+// captured with MediaRecorder and sent to /api/transcribe (Whisper via
+// OpenAI/Groq, or Gemini) for an accurate final transcript. If the server
+// has no transcription provider, the live captions become the transcript —
+// dictation never goes dark, it just gets less precise.
+
 export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled = false, isPremium = true }) => {
   const { error: toastError } = useToast();
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeStage, setAnalyzeStage] = useState<'transcribe' | 'emotion'>('transcribe');
   const recognitionRef = useRef<any>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const [waveformLevel, setWaveformLevel] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recorderMimeRef = useRef('audio/webm');
+  // Live-caption text mirrored in a ref so the async stop handler always
+  // reads the freshest words, not a stale closure.
+  const liveTranscriptRef = useRef('');
 
-  // Initialize Web Speech API
+  const authHeaders = (): HeadersInit => {
+    const token = localStorage.getItem('yadira_token');
+    return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  };
+
+  // Web Speech = live captions while talking (best-effort; some browsers lack it)
   const initRecognition = () => {
     if (recognitionRef.current) return;
-
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError('Speech Recognition not supported in your browser');
-      return;
-    }
+    if (!SpeechRecognition) return; // server transcription carries dictation alone
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -38,129 +55,163 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
     recognition.lang = 'en-US';
 
     let finalTranscript = '';
-
     recognition.onstart = () => {
-      setIsRecording(true);
-      setError('');
-      setTranscript('');
       finalTranscript = '';
     };
-
     recognition.onresult = (event: any) => {
-      let interimTranscript = '';
-
+      let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
-        } else {
-          interimTranscript += transcript;
-        }
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTranscript += text + ' ';
+        else interim += text;
       }
-
-      setTranscript(finalTranscript + interimTranscript);
+      const full = (finalTranscript + interim).trim();
+      liveTranscriptRef.current = full;
+      setTranscript(full);
     };
-
-    recognition.onerror = (event: any) => {
-      const errorMsg = `Voice Error: ${event.error}`;
-      setError(errorMsg);
-      toastError('Microphone Issue', event.error === 'no-speech' ? 'No speech detected. Try again.' : errorMsg);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
+    recognition.onerror = () => { /* captions are optional — audio still records */ };
     recognitionRef.current = recognition;
   };
 
-  const startRecording = () => {
-    initRecognition();
+  const startRecording = async () => {
     setError('');
-    recognitionRef.current?.start();
+    setTranscript('');
+    liveTranscriptRef.current = '';
 
-    // Start audio visualization
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        mediaStreamRef.current = stream;
-        const audioContext = new (window as any).AudioContext();
-        audioContextRef.current = audioContext;
-        const analyzer = audioContext.createAnalyser();
-        analyzerRef.current = analyzer;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err: any) {
+      const msg = `Microphone access denied: ${err.message}`;
+      setError(msg);
+      toastError('Microphone Permission', 'Please allow microphone access to use voice input');
+      return;
+    }
+    mediaStreamRef.current = stream;
+    setIsRecording(true);
 
-        const source = audioContext.createMediaStreamSource(stream);
-        source.connect(analyzer);
+    // Live captions (best-effort)
+    initRecognition();
+    try { recognitionRef.current?.start(); } catch { /* already running */ }
 
-        const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-        dataArrayRef.current = dataArray;
+    // The real recording, for Whisper-grade transcription
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']
+      .find((m) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m)) || '';
+    recorderMimeRef.current = (mime.split(';')[0]) || 'audio/webm';
+    try {
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+    } catch {
+      mediaRecorderRef.current = null; // captions-only mode
+    }
 
-        const updateWaveform = () => {
-          if (isRecording && analyzerRef.current && dataArrayRef.current) {
-            analyzerRef.current.getByteFrequencyData(dataArrayRef.current);
-            const average = dataArrayRef.current.reduce((a, b) => a + b) / dataArrayRef.current.length;
-            setWaveformLevel(average / 255);
-            requestAnimationFrame(updateWaveform);
-          }
-        };
-        updateWaveform();
-      })
-      .catch((err) => {
-        const msg = `Microphone access denied: ${err.message}`;
-        setError(msg);
-        toastError('Microphone Permission', 'Please allow microphone access to use voice input');
-      });
+    // Waveform visualization
+    try {
+      const audioContext = new (window as any).AudioContext();
+      audioContextRef.current = audioContext;
+      const analyzer = audioContext.createAnalyser();
+      analyzerRef.current = analyzer;
+      audioContext.createMediaStreamSource(stream).connect(analyzer);
+      const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+      dataArrayRef.current = dataArray;
+      const updateWaveform = () => {
+        if (analyzerRef.current && dataArrayRef.current && mediaStreamRef.current) {
+          analyzerRef.current.getByteFrequencyData(dataArrayRef.current);
+          const average = dataArrayRef.current.reduce((a, b) => a + b) / dataArrayRef.current.length;
+          setWaveformLevel(average / 255);
+          requestAnimationFrame(updateWaveform);
+        }
+      };
+      updateWaveform();
+    } catch { /* visualization is decorative */ }
   };
 
+  const blobToBase64 = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
   const stopRecording = async () => {
-    recognitionRef.current?.stop();
     setIsRecording(false);
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
 
-    // Stop audio stream
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
+    // Collect the recorded audio (recorder needs a beat to flush)
+    const recorder = mediaRecorderRef.current;
+    const recorded = await new Promise<Blob | null>((resolve) => {
+      if (!recorder || recorder.state === 'inactive') return resolve(null);
+      recorder.onstop = () =>
+        resolve(audioChunksRef.current.length ? new Blob(audioChunksRef.current, { type: recorderMimeRef.current }) : null);
+      try { recorder.stop(); } catch { resolve(null); }
+    });
+    mediaRecorderRef.current = null;
 
-    // If we have a transcript, analyze emotion and send
-    if (transcript.trim()) {
-      if (!isPremium) {
-        onTranscript(transcript.trim());
-        setTranscript('');
-        return;
-      }
-      setIsAnalyzing(true);
-      try {
-        const token = localStorage.getItem('yadira_token');
-        const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+    audioContextRef.current?.close().catch(() => {});
+    audioContextRef.current = null;
 
-        const response = await fetch('/api/analyze-emotion', {
+    setIsAnalyzing(true);
+    setAnalyzeStage('transcribe');
+    let finalText = liveTranscriptRef.current.trim();
+    try {
+      // Whisper-grade pass — server picks the best configured provider.
+      if (recorded && recorded.size > 200) {
+        const audio = await blobToBase64(recorded);
+        const r = await fetch('/api/transcribe', {
           method: 'POST',
-          headers,
-          body: JSON.stringify({ text: transcript.trim() }),
+          headers: authHeaders(),
+          body: JSON.stringify({ audio, mimeType: recorderMimeRef.current }),
         });
-
-        if (!response.ok) throw new Error(`Emotion analysis failed: ${response.statusText}`);
-
-        const emotion = await response.json();
-        onTranscript(transcript.trim(), emotion);
-        setTranscript('');
-      } catch (err) {
-        const msg = `Emotion analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-        setError(msg);
-        toastError('Emotion Analysis Failed', 'Could not analyze emotion. Sending message without emotion context.', {
-          label: 'Send Anyway',
-          onClick: () => onTranscript(transcript.trim()),
-        });
-      } finally {
-        setIsAnalyzing(false);
+        if (r.ok) {
+          const data = await r.json();
+          if (typeof data.text === 'string' && data.text.trim()) {
+            finalText = data.text.trim();
+            setTranscript(finalText);
+          }
+        }
+        // 501/502 → keep the live-caption text; dictation still works.
       }
+    } catch { /* network hiccup — live captions carry it */ }
+
+    if (!finalText) {
+      setIsAnalyzing(false);
+      setError('No speech captured. Try again, a little closer to the microphone.');
+      return;
+    }
+
+    if (!isPremium) {
+      setIsAnalyzing(false);
+      onTranscript(finalText);
+      setTranscript('');
+      return;
+    }
+
+    setAnalyzeStage('emotion');
+    try {
+      const response = await fetch('/api/analyze-emotion', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ text: finalText }),
+      });
+      if (!response.ok) throw new Error(`Emotion analysis failed: ${response.statusText}`);
+      const emotion = await response.json();
+      onTranscript(finalText, emotion);
+      setTranscript('');
+    } catch (err) {
+      const msg = `Emotion analysis error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      setError(msg);
+      toastError('Emotion Analysis Failed', 'Could not analyze emotion. Sending message without emotion context.', {
+        label: 'Send Anyway',
+        onClick: () => onTranscript(finalText),
+      });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -191,7 +242,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({ onTranscript, disabled =
 
         {isAnalyzing && (
           <motion.div animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 1, repeat: Infinity }} className="text-sm text-gray-500">
-            Analyzing emotion...
+            {analyzeStage === 'transcribe' ? 'Transcribing...' : 'Analyzing emotion...'}
           </motion.div>
         )}
       </div>

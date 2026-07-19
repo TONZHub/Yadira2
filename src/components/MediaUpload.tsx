@@ -10,7 +10,7 @@ interface MediaUploadProps {
    * family's photo album instead of discarding it after analysis.
    */
   onMediaAnalyzed: (
-    insight: { description: string; emotion: string; suggestions: string[] },
+    insight: { description: string; emotion: string; suggestions: string[]; caption?: string },
     photoDataUrl?: string
   ) => void;
   disabled?: boolean;
