@@ -50,6 +50,11 @@ const useEnterprisePlatform = !!gcpProject || !!enterpriseApiKey;
 // poolside/laguna-m.1 (the flagship) is a Render env change, not a deploy.
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'poolside/laguna-xs-2.1';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || (useEnterprisePlatform ? 'gemini-2.5-flash' : 'gemini-3.5-flash');
+// Media analysis reads family photos — faces, eras, places — where flash-class
+// models miss the details that make reminiscence land. Default to the pro
+// sibling of whatever family GEMINI_MODEL is on; override with
+// GEMINI_VISION_MODEL if the derived name doesn't exist for your account.
+const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL.replace('flash', 'pro');
 // Cross-device sync state, keyed by care circle. One family toggling Vivid
 // or Aurora must never flip the screens of another paying customer — the
 // old module-level booleans were shared across every visitor to the server.
@@ -927,6 +932,66 @@ ${COMPANION_GUARDRAILS}`;
   }
 });
 
+// Voice dictation transcription — Whisper-grade accuracy for the patient's
+// spoken messages. Provider chain, first configured key wins:
+//   1. OPENAI_API_KEY  → OpenAI whisper-1
+//   2. GROQ_API_KEY    → Groq whisper-large-v3-turbo (fast + cheap)
+//   3. Gemini          → audio transcription on the funded Gemini key
+//   4. none            → 501; the client falls back to the browser's own
+//      Web Speech recognition, so dictation never goes dark.
+app.post('/api/transcribe', async (req, res) => {
+  const { audio, mimeType } = req.body || {};
+  if (!audio || typeof audio !== 'string') {
+    return res.status(400).json({ error: 'audio (base64) is required' });
+  }
+  const b64 = audio.split(',').pop() as string;
+  const type = (typeof mimeType === 'string' && mimeType) || 'audio/webm';
+
+  try {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
+
+    if (openaiKey || groqKey) {
+      const url = openaiKey
+        ? 'https://api.openai.com/v1/audio/transcriptions'
+        : 'https://api.groq.com/openai/v1/audio/transcriptions';
+      const model = openaiKey ? 'whisper-1' : 'whisper-large-v3-turbo';
+      const form = new FormData();
+      form.append('file', new Blob([Buffer.from(b64, 'base64')], { type }), 'dictation.webm');
+      form.append('model', model);
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openaiKey || groqKey}` },
+        body: form,
+      });
+      if (!r.ok) throw new Error(`Whisper HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      const data: any = await r.json();
+      return res.json({ text: (data.text || '').trim(), provider: openaiKey ? 'openai-whisper' : 'groq-whisper' });
+    }
+
+    if (genAI) {
+      const response = await genAI.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType: type, data: b64 } },
+              { text: 'Transcribe this audio exactly as spoken, in the original language. Reply with ONLY the transcription text — no commentary, no quotes. If there is no intelligible speech, reply with an empty string.' },
+            ],
+          },
+        ],
+      });
+      return res.json({ text: (response.text || '').trim(), provider: 'gemini' });
+    }
+
+    return res.status(501).json({ error: 'no_transcription_provider' });
+  } catch (err: any) {
+    console.warn('[Yadira] Transcription failed:', err.message || err);
+    return res.status(502).json({ error: 'transcription_failed' });
+  }
+});
+
 // Endpoint for caregivers to auto-generate personalized cognitive routine plans using AI
 app.post('/api/routine/generate', async (req, res) => {
   const { patientProfile } = req.body || {};
@@ -1491,37 +1556,41 @@ app.post('/api/analyze-media', async (req, res) => {
       // Fallback: return mock insight
       return res.json({
         description: 'Photo of a joyful moment',
+        caption: 'A joyful moment',
         emotion: 'happy',
-        suggestions: ['Tell me more about this memory', 'Who is in this picture?', 'What a lovely moment!'],
+        suggestions: ['Tell me more about this memory', 'What was happening that day?', 'What a lovely moment!'],
       });
     }
 
-    // Use Gemini Vision to analyze the image
+    // Pro-class Gemini vision — family photos deserve the model that catches
+    // the wedding band, the make of the truck, the era of the wallpaper.
     const response = await genAI.models.generateContent({
-      model: GEMINI_MODEL,
+      model: GEMINI_VISION_MODEL,
       contents: [
         {
           role: 'user',
           parts: [
             {
               inlineData: {
-                mimeType: mediaType === 'video' ? 'image/jpeg' : 'image/jpeg',
+                mimeType: 'image/jpeg',
                 data: media.split(',')[1] || media, // Remove data:image/jpeg;base64, if present
               },
             },
             {
-              text: `You are analyzing a photo for a dementia patient care app. Describe what you see in 1-2 sentences, identify the emotional tone (happy/sad/peaceful/neutral), and suggest 2-3 gentle conversation starters.
+              text: `You are the eyes of a dementia-care companion looking at a family photo with the patient. Study it closely.
 
-Respond ONLY as valid JSON (no markdown):
-{
-  "description": "What's in the image",
-  "emotion": "happy|sad|peaceful|neutral",
-  "suggestions": ["Question 1", "Question 2", "Statement 3"]
-}`,
+Return JSON with exactly these fields:
+- "description": 2-3 warm sentences describing what is actually in the photo — people (ages, expressions, how they relate to each other), the place, and any era clues (clothing, cars, appliances, photo quality). Concrete visual details, because they unlock memories: "a man in a checked shirt leaning on a pale-blue pickup" reaches deeper than "a man outdoors". Never speculate about names.
+- "caption": one short line (under 12 words) suitable as a photo-album caption.
+- "emotion": one of happy | sad | peaceful | nostalgic | proud | neutral — the feeling the photo most likely carries for the family.
+- "suggestions": 3 gentle reminiscence openers grounded in what you SEE — sensory and specific ("Do you remember how that kitchen smelled on baking days?"), never quiz-like ("who is this?" is forbidden — it tests memory instead of inviting it).
+
+Respond ONLY with the JSON object, no markdown fences.`,
             },
           ],
         },
       ],
+      config: { responseMimeType: 'application/json' },
     });
 
     const text = response.text;
@@ -1529,14 +1598,15 @@ Respond ONLY as valid JSON (no markdown):
       throw new Error('Gemini returned empty response');
     }
 
-    // Parse JSON
-    let insight = {
+    // Parse JSON — strip markdown fences if the model added them anyway
+    let insight: any = {
       description: 'Photo',
+      caption: 'A family photo',
       emotion: 'neutral',
       suggestions: ['Tell me about this?'],
     };
     try {
-      insight = JSON.parse(text);
+      insight = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
     } catch {
       console.warn('[Yadira] Failed to parse media insight JSON:', text);
     }

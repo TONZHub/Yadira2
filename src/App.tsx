@@ -328,13 +328,15 @@ function AppContent() {
   const GALLERY_CAP = 40; // oldest photos roll off past this
   const addPhotoToGallery = (
     photoDataUrl: string,
-    insight: { description: string; emotion: string },
+    insight: { description: string; emotion: string; caption?: string },
     addedBy: GalleryPhoto['addedBy']
   ) => {
     const photo: GalleryPhoto = {
       id: `photo-${Date.now()}`,
       dataUrl: photoDataUrl,
-      caption: insight.description,
+      // The vision model's short caption reads better in the album than the
+      // full description; fall back to the description for older responses.
+      caption: insight.caption || insight.description,
       emotion: insight.emotion,
       addedAt: Date.now(),
       addedBy,
