@@ -1357,6 +1357,21 @@ function AppContent() {
     toastSuccess('Care circle ready', `${label} is loaded and ready.`);
   };
 
+  // Stop whatever Yadira is saying, right now. Bumping the speak generation
+  // also cancels any in-flight TTS fetch, so a queued reply can't start
+  // talking a second after the patient asked for quiet.
+  const stopSpeaking = () => {
+    speakGenRef.current++;
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) { /* ignore */ }
+    setIsSpeaking(false);
+  };
+
   // Text To Speech helper
   // Core TTS — no tab/voice guard, used internally and by caregiver memory preview.
   const speakTextDirect = (text: string) => {
@@ -2121,6 +2136,7 @@ function AppContent() {
           isSpeaking={isSpeaking}
           onUserSpoke={handleCallMessage}
           onExit={endCallMode}
+          onSkipSpeech={stopSpeaking}
           chatMessages={chatMessages}
         />
       )}
@@ -2233,6 +2249,26 @@ function AppContent() {
 
                   {/* Accessibility Audio Settings */}
                   <div className="flex items-center space-x-2">
+                    {/* Stop talking — appears only while Yadira is speaking.
+                        Big, labeled, and instant: "quiet, please" should never
+                        require hunting for a mute setting. */}
+                    <AnimatePresence>
+                      {isSpeaking && (
+                        <motion.button
+                          key="stop-speaking"
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          id="btn-stop-speaking"
+                          onClick={() => { stopSpeaking(); if (soundFeedback) playSoundCue('pop'); }}
+                          className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-[#C4877B] bg-[#FBF1EE] text-[#9C4A38] font-bold text-sm hover:bg-[#F6E3DE] transition-all active:scale-95"
+                          title="Stop Yadira's voice right now"
+                        >
+                          <VolumeX className="w-5 h-5" />
+                          Stop talking
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
                     <button
                       id="toggle-voice"
                       onClick={() => { setVoiceEnabled(!voiceEnabled); playSoundCue('pop'); }}

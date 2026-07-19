@@ -9,6 +9,8 @@ interface CallScreenProps {
   isSpeaking: boolean;
   onUserSpoke: (text: string) => void;
   onExit: () => void;
+  /** Cut the companion's speech short — listening resumes automatically. */
+  onSkipSpeech?: () => void;
   chatMessages: Message[];
 }
 
@@ -17,6 +19,7 @@ export default function CallScreen({
   isSpeaking,
   onUserSpoke,
   onExit,
+  onSkipSpeech,
   chatMessages,
 }: CallScreenProps) {
   const [callState, setCallState] = useState<'ringing' | 'connected'>('ringing');
@@ -297,6 +300,16 @@ export default function CallScreen({
             <>
               <Volume2 className="w-4 h-4 text-green-400 animate-pulse" />
               <span className="text-xs font-semibold text-green-400 tracking-wider uppercase">Speaking</span>
+              {onSkipSpeech && (
+                <button
+                  type="button"
+                  onClick={onSkipSpeech}
+                  className="ml-1 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-bold text-white/90 hover:bg-white/20 transition-all active:scale-95"
+                  title="Skip — your turn to talk"
+                >
+                  Skip
+                </button>
+              )}
             </>
           ) : isListening ? (
             <>

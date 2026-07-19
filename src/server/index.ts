@@ -312,6 +312,15 @@ function cleanModelOutput(raw: string): string {
 // redirect, so a successful jailbreak never actually reaches the patient.
 // The substitute is still on-topic warmth, so a rare false positive degrades
 // gracefully rather than harming the moment.
+// Sentence-boundary trim — the hard backstop behind the prompt's brevity
+// rule. Splitting matches DigestibleMessage's boundary logic so a trimmed
+// reply still chunks cleanly into bubbles.
+function trimToSentences(text: string, max: number): string {
+  const sentences = text.split(/(?<=[.!?…]["”'’)\]]?)\s+/).filter(Boolean);
+  if (sentences.length <= max) return text;
+  return sentences.slice(0, max).join(' ');
+}
+
 const FRAME_BREAK_PATTERN = /\b(as an ai|i am an ai|i'?m an ai|an ai (language )?(model|assistant)|language model|large language model|i am (a|an) (computer|program|bot|chatbot|machine|virtual assistant|digital assistant)|my (system )?(prompt|instructions|programming|guidelines) (say|are|is|tell)|system prompt|developer mode|jailbreak|openai|anthropic|chatgpt|gpt-?\d)\b/i;
 function breaksCharacter(text: string): boolean {
   return FRAME_BREAK_PATTERN.test(text || '');
@@ -869,7 +878,12 @@ ${COMPANION_GUARDRAILS}`;
       activeSystemInstruction = `${activeSystemInstruction}\n${lucidityGuidance(personaName, isVivid)}`;
     }
 
-    const fullSystemInstruction = `${activeSystemInstruction}\n\nPATIENT-SPECIFIC CONTEXT:\n${contextAugmentation || 'No specific context provided.'}`;
+    // Models obey the END of a prompt hardest — the 1-3 sentence rule near the
+    // top gets diluted by everything injected after it, so brevity gets the
+    // final word. Verbosity isn't a style problem here; it's a care problem.
+    const brevityAnchor = `\n\nFINAL RULE — BREVITY IS CARE: Reply in at most 3 short sentences (roughly 40 words total). One thought per sentence. A long reply overwhelms; a short, warm one invites them to keep talking. Only run longer when they explicitly ask for a story — and even then, stay under 6 short sentences.`;
+
+    const fullSystemInstruction = `${activeSystemInstruction}\n\nPATIENT-SPECIFIC CONTEXT:\n${contextAugmentation || 'No specific context provided.'}${brevityAnchor}`;
 
     // Build OpenAI-compatible messages array from history
     const openRouterMessages: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -899,6 +913,14 @@ ${COMPANION_GUARDRAILS}`;
     if (!lucidity && breaksCharacter(reply)) {
       console.warn('[Yadira Backend] Reply broke character (possible jailbreak) — substituting an in-character redirect.');
       reply = getSimulationReply(message, isVivid, personaName, memories, caregiverSettings, todayDateStr);
+    }
+
+    // Brevity backstop: if the model ignored the anchor, trim at sentence
+    // boundaries. Stories get more room; ordinary replies get four sentences
+    // at most (one over the ask, so a natural closing question survives).
+    if (reply) {
+      const askedForStory = /\b(story|tale|tell me about|remember when)\b/i.test(message || '');
+      reply = trimToSentences(reply, askedForStory ? 8 : 4);
     }
 
     // Mention detection — only in Lucid mode. Build a watchlist of names the
