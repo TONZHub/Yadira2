@@ -176,6 +176,9 @@ function AppContent() {
 
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
+  // Secondary caregiver hub navigation
+  type CaregiverTab = 'today' | 'talk' | 'memories' | 'settings';
+  const [caregiverTab, setCaregiverTab] = useState<CaregiverTab>('talk');
   const isCaregiverPreview = !isPatientSession && activeTab === 'patient';
   useEffect(() => {
     if (isPatientSession && activeTab !== 'patient') {
@@ -2856,7 +2859,33 @@ function AppContent() {
                 </div>
               </div>
  
+              {/* Caregiver Hub Secondary Navigation */}
+              <div className="flex gap-1 p-1 bg-[#F4F1EA] rounded-2xl border border-[#E3DFC2] w-full">
+                {([
+                  { id: 'talk',     label: 'Talk to Yadira', icon: '💬' },
+                  { id: 'today',    label: 'Today',          icon: '📋' },
+                  { id: 'memories', label: 'Memories',       icon: '📷' },
+                  { id: 'settings', label: 'Settings',       icon: '⚙️' },
+                ] as { id: CaregiverTab; label: string; icon: string }[]).map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setCaregiverTab(t.id)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      caregiverTab === t.id
+                        ? 'bg-white text-[#3A5D45] shadow-sm border border-[#E3DFC2]'
+                        : 'text-[#7E7D76] hover:text-[#3A5D45] hover:bg-white/50'
+                    }`}
+                    aria-current={caregiverTab === t.id ? 'page' : undefined}
+                  >
+                    <span aria-hidden="true">{t.icon}</span>
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
               {/* Ask Yadira — the caregiver's co-pilot */}
+              {caregiverTab === 'talk' && (
               <div className="bg-white rounded-3xl border border-[#E3DFC2] shadow-sm overflow-hidden">
                 <div className="p-5 sm:p-6 border-b border-[#EFECDD] flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
@@ -2948,6 +2977,12 @@ function AppContent() {
                   <p className="text-[10px] text-[#A6A27B] mt-2">Yadira can be wrong and isn't a doctor — for medical decisions, contact your clinician.</p>
                 </div>
               </div>
+
+              )}
+
+              {/* ── SETTINGS TAB ─────────────────────────────────────────── */}
+              {caregiverTab === 'settings' && (
+              <div className="space-y-6">
 
               {/* Clinical Session Control & Mode Settings */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -3278,6 +3313,13 @@ function AppContent() {
                   </div>
                 </div>
               </div>
+
+              </div>
+              )}
+
+              {/* ── TODAY TAB ────────────────────────────────────────────── */}
+              {caregiverTab === 'today' && (
+              <div className="space-y-6">
 
               {/* Grid 1: Symptom Logger & Custom FAQ Override */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -3701,7 +3743,15 @@ function AppContent() {
 
               </div>
 
-              {/* Nurse Redirection Portal */}
+              </div>
+              )}
+
+              {/* ── MEMORIES TAB ─────────────────────────────────────────── */}
+              {caregiverTab === 'memories' && (
+              <div className="space-y-6">
+
+              {/* Nurse Redirection Portal — moved to Memories: caregivers redirect
+                  by recalling grounding memories, so it lives here */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2.5">
@@ -4035,6 +4085,9 @@ function AppContent() {
                   </div>
                 )}
               </div>
+
+              </div>
+              )}
 
               {/* Add Memory Modal Dialog */}
               {showFamilySetup && (
