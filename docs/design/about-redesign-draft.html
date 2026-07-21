@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>About Yadira — Project Anamnesia</title>
+  <meta name="description" content="Learn what Yadira is, who it's for, and the principles behind Project Anamnesia's companion for dementia care and caregiving." />
+  <style>
+    :root {
+      --bg: #F8F4E9;
+      --paper: #FCFAF5;
+      --ink: #2C2C2A;
+      --muted: #7E7D76;
+      --line: #E3DFC2;
+      --green: #3A5D45;
+      --green-2: #2B4633;
+      --amber: #B88A2A;
+      --cream: #EFECDD;
+      --focus: #2d6cdf;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+    body { font: 500 16px/1.7 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      background:
+        radial-gradient(1200px 500px at 50% -200px, #fff8dc 0%, transparent 70%),
+        linear-gradient(180deg, #FBF7ED 0%, #F8F4E9 100%);
+      border-bottom: 1px solid var(--line);
+      padding: 64px 0 28px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border: 1px solid var(--line);
+      border-radius: 999px; background: #fff;
+      color: #5E5D57; font-weight: 700; font-size: 12px;
+      letter-spacing: .3px; text-transform: uppercase;
+    }
+    h1 {
+      margin: 14px auto 10px;
+      max-width: 820px;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.08;
+      letter-spacing: -.02em;
+      color: #263427;
+    }
+    .lede {
+      margin: 0 auto;
+      max-width: 760px;
+      color: #52514b;
+      font-size: clamp(17px, 2.4vw, 22px);
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .pillars {
+      margin: 22px auto 0;
+      padding: 0;
+      list-style: none;
+      display: flex; flex-wrap: wrap; gap: 10px;
+      justify-content: center;
+    }
+    .pillars li {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: #59584f;
+      font-weight: 700;
+    }
+
+    /* ---------- Tabs ---------- */
+    .tab-bar {
+      position: sticky; top: 0; z-index: 20;
+      background: color-mix(in srgb, var(--bg) 92%, white 8%);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(6px);
+    }
+    .tabs {
+      display: flex; gap: 8px; overflow-x: auto;
+      padding: 10px 0;
+      scrollbar-width: thin;
+    }
+    .tab-btn {
+      appearance: none; border: 1px solid var(--line); background: #fff;
+      color: #56554f; font-weight: 800; font-size: 13px;
+      border-radius: 999px; padding: 8px 12px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab-btn[aria-selected="true"] {
+      background: #3A5D45; color: #fff; border-color: #3A5D45;
+    }
+    .tab-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 40%, transparent); outline-offset: 2px; }
+
+    /* ---------- Sections ---------- */
+    section { padding: 34px 0; }
+    .panel {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 2px 0 rgba(0,0,0,.02);
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: clamp(22px, 3.2vw, 30px);
+      line-height: 1.16;
+      letter-spacing: -.01em;
+      color: #263427;
+    }
+    p { margin: 0 0 12px; color: #4E4D47; }
+    .fine { color: var(--muted); font-size: 14px; }
+
+    .grid {
+      display: grid; gap: 14px;
+      grid-template-columns: repeat(12, minmax(0,1fr));
+    }
+    .card {
+      grid-column: span 12;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      padding: 16px;
+    }
+    @media (min-width: 760px) {
+      .card.half { grid-column: span 6; }
+      .card.third { grid-column: span 4; }
+      .card.two-thirds { grid-column: span 8; }
+    }
+    h3 { margin: 0 0 8px; font-size: 18px; line-height: 1.25; color: #2f2f2b; }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 6px 0; color: #4f4e47; }
+
+    .quote {
+      margin: 10px 0 0;
+      padding: 12px 14px;
+      border-left: 3px solid #d7c9a0;
+      background: #fffaf0;
+      color: #514f47;
+      border-radius: 10px;
+      font-style: italic;
+    }
+
+    .callout {
+      border: 1px solid #d8e5d9;
+      background: #f6fbf7;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .danger {
+      border: 1px solid #efd9d9;
+      background: #fff7f7;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .btn {
+      display: inline-block;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 10px 14px;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { background: var(--green-2); }
+    .btn-ghost { background: #fff; border-color: var(--line); color: #4f4e47; }
+
+    .band {
+      border: 1px dashed #dacfa9;
+      background: #fff8e8;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .pricing {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    @media (min-width: 840px) { .pricing { grid-template-columns: repeat(3,1fr);} }
+    .tier {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      padding: 16px;
+    }
+    .tier.highlight {
+      border-color: #c9d9ca;
+      background: #f7fbf8;
+      box-shadow: inset 0 0 0 1px #e2eee3;
+    }
+    .price { font-size: 30px; font-weight: 900; color: #2b4633; line-height: 1; }
+    .who { font-weight: 800; color: #2f2f2b; margin-bottom: 6px; }
+    .per { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      margin-top: 30px;
+      padding: 20px 0 28px;
+      color: #66655e;
+      font-size: 14px;
+    }
+    a { color: #2E5AA7; }
+    a:focus-visible { outline: 3px solid color-mix(in srgb, var(--focus) 42%, transparent); border-radius: 6px; }
+
+    .sr-only {
+      position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+      clip:rect(0,0,0,0);white-space:nowrap;border:0;
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="badge" aria-label="Project identity">Project Anamnesia · Yadira</div>
+      <h1>An empathetic companion for people living with dementia — and the caregivers who love them.</h1>
+      <p class="lede">
+        Yadira gives families a gentle, voice-first space for reassurance, memory, and connection.
+        It is built to <b>validate feelings</b>, reduce distress, and support daily caregiving —
+        without replacing human care.
+      </p>
+      <ul class="pillars" aria-label="Core principles">
+        <li>Validation over correction</li>
+        <li>Comfort over compliance</li>
+        <li>Caregiver partnership</li>
+        <li>Dignity first</li>
+      </ul>
+    </div>
+  </header>
+
+  <nav class="tab-bar" aria-label="About sections">
+    <div class="wrap tabs" role="tablist">
+      <button class="tab-btn" role="tab" aria-selected="true" aria-controls="panel-about" id="tab-about" data-tab="about">About</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-how" id="tab-how" data-tab="how">How it works</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-caregivers" id="tab-caregivers" data-tab="caregivers">For caregivers</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-facilities" id="tab-facilities" data-tab="facilities">For facilities</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-trust" id="tab-trust" data-tab="trust">Safety & trust</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-pricing" id="tab-pricing" data-tab="pricing">Pricing & sponsorship</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ABOUT -->
+    <section id="panel-about" class="tab-panel" role="tabpanel" aria-labelledby="tab-about" data-panel="about">
+      <div class="wrap">
+        <div class="panel">
+          <h2>Why Yadira exists</h2>
+          <p>
+            Dementia often creates a painful mismatch between what a person feels and what the world keeps insisting is “real.”
+            Traditional software often responds with correction. Yadira responds with <b>companionship</b>.
+          </p>
+          <p>
+            The approach is inspired by validation therapy (Naomi Feil): meet the person where they are,
+            acknowledge the emotional truth, and gently redirect only when helpful. In practice,
+            this means fewer confrontations, less panic, and more moments of calm connection.
+          </p>
+
+          <div class="grid" style="margin-top:10px">
+            <article class="card half">
+              <h3>Who it's for</h3>
+              <ul>
+                <li>People living with dementia who need reassurance and familiarity</li>
+                <li>Family caregivers managing emotional load and daily routines</li>
+                <li>Professional care teams supporting many residents at once</li>
+              </ul>
+            </article>
+            <article class="card half">
+              <h3>What it is not</h3>
+              <ul>
+                <li>Not a medical device</li>
+                <li>Not a diagnosis or treatment tool</li>
+                <li>Not a substitute for clinicians or emergency services</li>
+              </ul>
+            </article>
+          </div>
+
+          <p class="quote">
+            “Reality orientation can increase anxiety in some moments. Validation can restore trust.”
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section id="panel-how" class="tab-panel" role="tabpanel" aria-labelledby="tab-how" data-panel="how" hidden>
+      <div class="wrap">
+        <div class="panel">
+          <h2>How Yadira works in daily life</h2>
+          <div class="grid">
+            <article class="card third">
+              <h3>1) Build a familiar voice</h3>
+              <p>Caregivers add letters, photos, and voice notes to shape a persona the loved one recognizes.</p>
+            </article>
+            <article class="card third">
+              <h3>2) Offer a calm channel</h3>
+              <p>Hands-free call mode and gentle sensory rooms (Aurora/Beach) create a low-friction way to self-soothe.</p>
+            </article>
+            <article class="card third">
+              <h3>3) Preserve continuity</h3>
+              <p>Session Memory helps the companion carry context from one conversation to the next.</p>
+            </article>
+          </div>
+
+          <div class="grid" style="margin-top:10px">
+            <article class="card two-thirds">
+              <h3>Companion behaviors</h3>
+              <ul>
+                <li>Validates emotions (“That sounds scary; I’m here with you.”)</li>
+                <li>Avoids blunt contradiction when it would escalate distress</li>
+                <li>Uses short, grounding prompts and familiar routines</li>
+                <li>Supports redirection to food, hydration, rest, and safe activities</li>
+              </ul>
+            </article>
+            <article class="card third callout">
+              <h3>Caregiver controls</h3>
+              <ul>
+                <li>Routines and check-ins</li>
+                <li>Conversation context inputs</li>
+                <li>Optional AI-generated care reports</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CAREGIVERS -->
+    <section id="panel-caregivers" class="tab-panel" role="tabpanel" aria-labelledby="tab-caregivers" data-panel="caregivers" hidden>
+      <div class="wrap">
+        <div class="panel">
+          <h2>For family caregivers</h2>
+          <p>
+            Yadira is designed to reduce the “always-on” pressure caregivers carry by helping with emotional de-escalation,
+            routine prompts, and continuity when you can’t be in the room every minute.
+          </p>
+          <div class="grid" style="margin-top:10px">
+            <article class="card half">
+              <h3>Included free for every family</h3>
+              <ul>
+                <li>Natural loved-one voice companion</li>
+                <li>Hands-free Call Mode</li>
+                <li>Session Memory continuity</li>
+                <li>Calming sensory rooms</li>
+                <li>Photos and memory prompts</li>
+              </ul>
+            </article>
+            <article class="card half">
+              <h3>Caregiver Pro ($5/week)</h3>
+              <ul>
+                <li>Unlimited AI care reports</li>
+                <li>Unlimited routine generation</li>
+                <li>Unlimited clinical insight summaries</li>
+                <li>Billing via Stripe, cancel anytime</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FACILITIES -->
+    <section id="panel-facilities" class="tab-panel" role="tabpanel" aria-labelledby="tab-facilities" data-panel="facilities" hidden>
+      <div class="wrap">
+        <div class="panel">
+          <h2>For memory-care & assisted-living facilities</h2>
+          <p>
+            Facilities can deploy Yadira per-unit so every resident can access support,
+            while staff gain tools that align with person-centered dementia care.
+          </p>
+          <div class="grid" style="margin-top:10px">
+            <article class="card half">
+              <h3>Resident support</h3>
+              <ul>
+                <li>No per-family paywalls inside partnered units</li>
+                <li>Companion access tuned to each resident persona</li>
+                <li>Calming interactions during high-distress windows</li>
+              </ul>
+            </article>
+            <article class="card half">
+              <h3>Staff support</h3>
+              <ul>
+                <li>Redirection cue generation from nurse notes</li>
+                <li>Daily routine planning assistance</li>
+                <li>Clinical insight trend snapshots (sleep/hydration/mood)</li>
+              </ul>
+            </article>
+          </div>
+          <p class="fine" style="margin-top:8px">
+            Partnerships are priced per-unit and can start with a pilot.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRUST -->
+    <section id="panel-trust" class="tab-panel" role="tabpanel" aria-labelledby="tab-trust" data-panel="trust" hidden>
+      <div class="wrap">
+        <div class="panel">
+          <h2>Safety, boundaries, and transparency</h2>
+          <div class="grid">
+            <article class="card half">
+              <h3>Important boundaries</h3>
+              <ul>
+                <li>Yadira does not diagnose or treat disease</li>
+                <li>In emergencies, contact local emergency services</li>
+                <li>Care plans remain clinician-directed</li>
+              </ul>
+            </article>
+            <article class="card half danger">
+              <h3>When to escalate to humans</h3>
+              <ul>
+                <li>Sudden severe confusion or behavior change</li>
+                <li>Falls, injuries, chest pain, breathing distress</li>
+                <li>Any situation suggesting immediate risk</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="band" style="margin-top:12px">
+            <b>Data use philosophy:</b> data is used to run and improve the service for families,
+            not sold for advertising profiles.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="panel-pricing" class="tab-panel" role="tabpanel" aria-labelledby="tab-pricing" data-panel="pricing" hidden>
+      <div class="wrap">
+        <div class="panel">
+          <h2>Pricing and sponsorship</h2>
+          <p>
+            The core companion is free for families. Sponsorships and care-facility partnerships
+            keep access open for people who would otherwise be priced out.
+          </p>
+
+          <div class="pricing" style="margin-top:10px">
+            <div class="tier">
+              <div class="who">Families</div>
+              <div class="price">$0</div>
+              <div class="per">core companion, always</div>
+              <ul>
+                <li>Natural voice companion</li>
+                <li>Call mode + sensory rooms</li>
+                <li>Session memory continuity</li>
+              </ul>
+              <a class="btn btn-ghost" href="/?start">Start now</a>
+            </div>
+            <div class="tier">
+              <div class="who">Caregiver Pro</div>
+              <div class="price">$5</div>
+              <div class="per">per week — cancel anytime</div>
+              <ul>
+                <li>Everything families get</li>
+                <li>Unlimited AI care reports</li>
+                <li>Unlimited routines &amp; insights</li>
+                <li>Unlimited caregiver co-pilot chat</li>
+              </ul>
+              <a class="btn btn-ghost" href="/?start">Upgrade in the app</a>
+            </div>
+            <div class="tier highlight">
+              <div class="who">Care facilities</div>
+              <div class="price">Per-unit</div>
+              <div class="per">partnership pricing</div>
+              <ul>
+                <li>Every resident, no family paywall</li>
+                <li>Staff redirection cues</li>
+                <li>Clinical insight tracking</li>
+                <li>Persona onboarding support</li>
+              </ul>
+              <a class="btn btn-primary" href="mailto:partnerships@yadira.chat?subject=Facility%20partnership">Talk to us</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap" style="margin-top:14px">
+        <section class="band">
+          <h2>Believe no one should grieve without a container?</h2>
+          <p>Sponsorships keep Yadira free for families who couldn’t otherwise afford connection. Every dollar goes to running the service — not ads.</p>
+          <a class="btn btn-primary" href="mailto:partnerships@yadira.chat?subject=Sponsoring%20a%20family">Sponsor a family</a>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p class="disclaimer">Yadira is a comfort and caregiving companion — <b>not a medical device</b>. It does not diagnose or treat any condition. In an emergency, always contact emergency services.</p>
+      <p class="fine">Built for the XPRIZE “Build with Gemini” challenge · Part of Project Anamnesia · © 2026 Yadira · <a href="/?terms">Terms &amp; Acknowledgements</a> · <a href="mailto:partnerships@yadira.chat">partnerships@yadira.chat</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Section tabs — one panel visible at a time. Progressive enhancement: with
+    // JS off, all panels render (the anchors still work), just as a long scroll.
+    (function () {
+      var buttons = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
+      var panels = Array.prototype.slice.call(document.querySelectorAll('.tab-panel'));
+      var bar = document.querySelector('.tab-bar');
+      var names = panels.map(function (p) { return p.getAttribute('data-panel'); });
+
+      function show(name, scroll) {
+        if (names.indexOf(name) === -1) name = 'about';
+        panels.forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== name; });
+        document.querySelectorAll('.tab-btn').forEach(function (b) {
+          b.setAttribute('aria-selected', b.getAttribute('data-tab') === name ? 'true' : 'false');
+        });
+        try { history.replaceState(null, '', '#' + name); } catch (e) {}
+        if (scroll && bar) {
+          // Bring the sticky bar (and the chosen panel beneath it) to the top,
+          // with a little breathing room.
+          var y = bar.getBoundingClientRect().top + window.pageYOffset - 8;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }
+
+      function onActivate(btn, userInitiated) {
+        var name = btn.getAttribute('data-tab');
+        show(name, userInitiated);
+        btn.focus();
+      }
+
+      buttons.forEach(function (btn) {
+        btn.addEventListener('click', function () { onActivate(btn, true); });
+        btn.addEventListener('keydown', function (e) {
+          var i = buttons.indexOf(btn);
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            var next = buttons[(i + 1) % buttons.length];
+            onActivate(next, true);
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            var prev = buttons[(i - 1 + buttons.length) % buttons.length];
+            onActivate(prev, true);
+          } else if (e.key === 'Home') {
+            e.preventDefault();
+            onActivate(buttons[0], true);
+          } else if (e.key === 'End') {
+            e.preventDefault();
+            onActivate(buttons[buttons.length - 1], true);
+          }
+        });
+      });
+
+      // Initial panel from hash (if valid), else About.
+      var initial = (location.hash || '').replace(/^#/, '');
+      show(initial || 'about', false);
+    })();
+  </script>
+</body>
+</html>

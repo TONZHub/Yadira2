@@ -1,7 +1,9 @@
-# Sponsor Yadira: keep it free for families
+<p align="center"><img src="public/yadira-logo.png" alt="Yadira" width="360"></p>
 
-Yadira was built on a simple promise to families living with dementia:
-**you should not have to lose support because you can't afford a subscription.**
+# Sponsor Yadira
+
+**Yadira is free for families.** A daughter should never have to reach for a
+credit card to hear her mother's voice again.
 
 We keep that promise the only honest way it can be kept: the people and
 institutions who *can* pay — care facilities, foundations, and benefactors who
