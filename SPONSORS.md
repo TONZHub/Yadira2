@@ -1,9 +1,7 @@
-<p align="center"><img src="public/yadira-logo.png" alt="Yadira" width="360"></p>
+# Sponsor Yadira: keep it free for families
 
-# Sponsor Yadira
-
-**Yadira is free for families.** A daughter should never have to reach for a
-credit card to hear her mother's voice again.
+Yadira was built on a simple promise to families living with dementia:
+**you should not have to lose support because you can't afford a subscription.**
 
 We keep that promise the only honest way it can be kept: the people and
 institutions who *can* pay — care facilities, foundations, and benefactors who
@@ -41,7 +39,7 @@ companion **and** gives your staff the tooling built around it:
 Pricing is per-unit, not per-family, and we scale it to the size of your
 program. **The families in your care never see a charge.**
 
-**→ Start a partnership:** email `partnerships@yadira.app` *(placeholder —
+**→ Start a partnership:** email `partnerships@yadira.chat` *(placeholder —
 replace with your real contact)* with your facility name, resident count, and
 a good time to talk. We'll walk you through a pilot on one unit.
 
