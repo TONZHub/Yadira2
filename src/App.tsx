@@ -37,7 +37,7 @@ import {
   Moon,
   Sun
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
@@ -182,6 +182,11 @@ function AppContent() {
   // Larger-text accessibility toggle — device-wide, persisted.
   const [largeFont, toggleLargeFont] = useLargeFont();
   const { theme: dashTheme, dark: darkMode, setTheme: setDashTheme, setDark: setDarkMode } = useTheme();
+  // Honor the OS "reduce motion" setting — for vestibular sensitivity, and
+  // because constant background drift can be dysregulating for a dementia
+  // patient. When set, the ambient blobs hold still (CSS animations are
+  // quieted globally in index.css).
+  const reduceMotion = useReducedMotion();
 
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
@@ -1959,20 +1964,20 @@ function AppContent() {
         <motion.div
           className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
           style={{ background: 'radial-gradient(circle, var(--c-blob-a) 0%, var(--c-blob-b) 45%, transparent 72%)' }}
-          animate={{ x: [0, 28, -16, 0], y: [0, 18, -10, 0], scale: [1, 1.08, 0.96, 1] }}
-          transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { x: [0, 28, -16, 0], y: [0, 18, -10, 0], scale: [1, 1.08, 0.96, 1] }}
+          transition={reduceMotion ? undefined : { duration: 16, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute top-1/3 -right-28 w-[28rem] h-[28rem] rounded-full blur-3xl opacity-25"
           style={{ background: 'radial-gradient(circle, #ffd6e0 0%, #ff8fab 48%, transparent 74%)' }}
-          animate={{ x: [0, -22, 14, 0], y: [0, -16, 12, 0], scale: [1, 0.95, 1.07, 1] }}
-          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { x: [0, -22, 14, 0], y: [0, -16, 12, 0], scale: [1, 0.95, 1.07, 1] }}
+          transition={reduceMotion ? undefined : { duration: 18, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
           className="absolute -bottom-28 left-1/4 w-[30rem] h-[30rem] rounded-full blur-3xl opacity-20"
           style={{ background: 'radial-gradient(circle, #dbeafe 0%, #93c5fd 45%, transparent 72%)' }}
-          animate={{ x: [0, 20, -18, 0], y: [0, -14, 10, 0], scale: [1, 1.05, 0.94, 1] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+          animate={reduceMotion ? undefined : { x: [0, 20, -18, 0], y: [0, -14, 10, 0], scale: [1, 1.05, 0.94, 1] }}
+          transition={reduceMotion ? undefined : { duration: 20, repeat: Infinity, ease: 'easeInOut' }}
         />
       </div>
       
@@ -1993,7 +1998,7 @@ function AppContent() {
               className="w-[52px]"
             />
             <span className="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-[#E8F1EB] text-[#3A5D45] uppercase tracking-wider border border-[#CEDFCF]">
-              XPRIZE Dementia Companion
+              Caregiver Hub
             </span>
           </div>
         )}
@@ -4261,10 +4266,10 @@ function AppContent() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0">
           <div className="flex items-center space-x-2">
             <HeartHandshake className="w-4 h-4 text-[#3A5D45]" />
-            <span>Yadira Dementia Companion Hub — Pitch Protocol</span>
+            <span>Yadira — a companion for families navigating dementia</span>
           </div>
           <p className="text-xs">
-            Optimized for XPRIZE Dementia Care, leveraging secure server-side Gemini 3.5 LLMs.
+            A comfort companion, not a medical device. In an emergency, always call emergency services.
           </p>
         </div>
       </footer>

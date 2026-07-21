@@ -139,3 +139,40 @@ svg {
 [data-mode="dark"] .text-indigo-700{color:#aab2ee}
 [data-mode="dark"] .text-indigo-500{color:#8b93d8}
 [data-mode="dark"] .hover\:bg-indigo-100:hover{background-color:#272d52}
+
+/* ============================================================= */
+/*  Accessibility pass                                           */
+/* ============================================================= */
+
+/* Reduced motion — quiet all CSS animation/transition when the viewer's
+   OS asks for it. The JS-driven ambient blobs are gated in App.tsx via
+   useReducedMotion(). Constant motion can dysregulate a dementia patient,
+   so this is clinical as much as it is accessibility. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:0.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:0.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+
+/* Visible keyboard focus everywhere — for caregivers on keyboard/switch
+   access. Uses the active theme accent so it's on-brand and it tracks
+   dark mode. :where() keeps specificity at 0 so it never fights component
+   styles; the outline is what carries the visibility. */
+:where(a, button, input, textarea, select, [role="button"], [tabindex]):focus-visible{
+  /* !important so it wins over components that set focus:outline-none in
+     order to use their own ring — a visible focus indicator must never be
+     silently suppressed. */
+  outline: 3px solid var(--c-accent) !important;
+  outline-offset: 2px !important;
+  border-radius: 6px;
+}
+
+/* Contrast — the muted subtext greys failed WCAG AA on cream (~3.4-4.0:1).
+   Darkened to clear ~5:1 while staying visually "muted". Dark-mode remaps
+   (higher specificity, above) still win when dark. */
+.text-\[\#7E7D76\]{color:#64635c}
+.text-\[\#8A8981\]{color:#64635c}
+.text-\[\#A6A27B\]{color:#6c6848}
