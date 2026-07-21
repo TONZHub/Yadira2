@@ -4,6 +4,7 @@ import { AlertTriangle, Loader, UserRound, Shield, ALargeSmall } from 'lucide-re
 import { motion, AnimatePresence } from 'motion/react';
 import TermsModal, { TERMS_VERSION } from './TermsModal';
 import { useLargeFont } from '../lib/fontScale';
+import EvergreenBackdrop from './EvergreenBackdrop';
 
 // The logo draw-in finishes around 2.5s and holds; the frame blanks near
 // 5.5s. Fade the intro out just before the blank so the wordmark never
@@ -90,7 +91,11 @@ export const LoginScreen: React.FC = () => {
   const displayError = localError || authError;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center p-4 overflow-hidden">
+      {/* Evergreen forest backdrop — Hattie's woodland, extended to Yadira's
+          front door. Decorative, behind everything. */}
+      <EvergreenBackdrop className="pointer-events-none absolute inset-0 w-full h-full z-0" />
+
       {/* Larger-text toggle — reachable before signing in, for caregivers who
           need it from the very first screen. */}
       <button
@@ -133,7 +138,7 @@ export const LoginScreen: React.FC = () => {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 border border-[#E3DFC2]"
+        className="relative z-10 w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 border border-[#E3DFC2]"
       >
         {/* Header */}
         <div className="text-center mb-8">
