@@ -109,17 +109,19 @@ function transcriptionConfig() {
   const openAIKey = process.env.OPENAI_API_KEY?.trim();
   const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
   const openAIBaseURL = process.env.OPENAI_BASE_URL?.trim();
-  const usingOpenRouter = !openAIKey && !!openRouterKey;
+  const model = process.env.OPENAI_TRANSCRIBE_MODEL?.trim() || WHISPER_TURBO_MODEL;
+  const hasOpenRouterKey = !!openRouterKey && openRouterKey !== 'MY_OPENROUTER_API_KEY';
+  const hasOpenAIBaseURL = !!openAIBaseURL && openAIBaseURL.length > 0;
+  const hasOpenAICompatibleConfig = !!openAIKey && openAIKey !== 'MY_OPENAI_API_KEY' && hasOpenAIBaseURL;
+  const usingOpenRouter = !hasOpenAICompatibleConfig && hasOpenRouterKey;
   const apiKey = openAIKey || openRouterKey || '';
   const baseURL = openAIBaseURL || (usingOpenRouter ? OPENROUTER_BASE_URL : undefined);
 
   return {
     apiKey,
     baseURL,
-    configured:
-      ((!!openRouterKey && openRouterKey !== 'MY_OPENROUTER_API_KEY') ||
-        (!!openAIKey && openAIKey !== 'MY_OPENAI_API_KEY' && !!openAIBaseURL)) &&
-      !!baseURL,
+    model,
+    configured: (hasOpenRouterKey || hasOpenAICompatibleConfig) && !!baseURL,
   };
 }
 
@@ -145,7 +147,7 @@ export function registerTranscribeRoutes(app: express.Express) {
       const file = await toFile(audio.buffer, audio.filename, { type: audio.mimeType });
       const transcription = await client.audio.transcriptions.create({
         file,
-        model: WHISPER_TURBO_MODEL,
+        model: config.model,
       });
 
       if (typeof transcription?.text !== 'string') {
