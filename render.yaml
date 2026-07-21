@@ -12,6 +12,12 @@ services:
     startCommand: npm run start
     healthCheckPath: /api/shared-mode
     envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: OPENAI_TRANSCRIBE_MODEL
+        sync: false
       - key: OPENROUTER_API_KEY
         sync: false
       # Stripe billing for Yadira Premium ($5/week). sk_test_... to try it,
