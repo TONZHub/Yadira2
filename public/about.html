@@ -83,6 +83,13 @@
   .font-toggle .aa{font-weight:800;letter-spacing:-1px}
   .font-toggle .aa .big{font-size:1.15em}
 
+  /* section tabs — show one panel at a time so the page isn't a marathon scroll */
+  .tab-bar{position:sticky;top:0;z-index:30;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;background:rgba(251,248,240,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 16px}
+  .tab-btn{appearance:none;border:none;background:none;font:inherit;font-weight:700;font-size:15px;color:var(--sub);padding:9px 16px;border-radius:999px;cursor:pointer;transition:all .15s ease}
+  .tab-btn:hover{color:var(--sage);background:var(--cream)}
+  .tab-btn[aria-selected="true"]{color:#fff;background:var(--sage)}
+  .tab-panel[hidden]{display:none}
+
   /* about */
   .about{padding:72px 0;border-bottom:1px solid var(--line)}
   .about h2{font-size:clamp(22px,3vw,30px);font-weight:800;text-align:center;margin-bottom:8px}
@@ -150,14 +157,22 @@
     </div>
     <p class="free-note">No credit card. The patient-facing companion is free for families, always.</p>
     <nav class="hero-nav" aria-label="Page sections">
-      <a href="#about">About</a>
-      <a href="#why">Why choose Yadira</a>
-      <a href="#features">Features</a>
-      <a href="#pricing">Pricing</a>
+      <a href="#about" data-tab="about">About</a>
+      <a href="#why" data-tab="why">Why choose Yadira</a>
+      <a href="#features" data-tab="features">Features</a>
+      <a href="#pricing" data-tab="pricing">Pricing</a>
     </nav>
   </div>
 </section>
 
+<nav class="tab-bar" aria-label="Sections">
+  <button class="tab-btn" type="button" data-tab="about" aria-selected="true">About</button>
+  <button class="tab-btn" type="button" data-tab="why" aria-selected="false">Why choose Yadira</button>
+  <button class="tab-btn" type="button" data-tab="features" aria-selected="false">Features</button>
+  <button class="tab-btn" type="button" data-tab="pricing" aria-selected="false">Pricing</button>
+</nav>
+
+<div class="tab-panel" data-panel="about">
 <section class="story">
   <div class="wrap">
     <blockquote>
@@ -190,7 +205,9 @@
     </div>
   </div>
 </section>
+</div><!-- /about panel -->
 
+<div class="tab-panel" data-panel="why" hidden>
 <section class="why" id="why">
   <div class="wrap">
     <h2>Why choose Yadira</h2>
@@ -253,7 +270,9 @@
     <p class="fair-note">Prices are approximate U.S. retail. And in fairness: a warm thing to hold genuinely helps — Yadira works happily alongside a robot cat or a beloved doll. It just shouldn't cost a family hundreds of dollars to feel less alone.</p>
   </div>
 </section>
+</div><!-- /why panel -->
 
+<div class="tab-panel" data-panel="features" hidden>
 <section class="features" id="features">
   <div class="wrap">
     <h2>Built for both sides of care</h2>
@@ -268,7 +287,9 @@
     </div>
   </div>
 </section>
+</div><!-- /features panel -->
 
+<div class="tab-panel" data-panel="pricing" hidden>
 <section class="model" id="pricing">
   <div class="wrap">
     <h2>Free for families. Sustained by the people who can pay.</h2>
@@ -322,6 +343,7 @@
     <a class="btn btn-primary" href="mailto:partnerships@yadira.app?subject=Sponsoring%20a%20family">Sponsor a family</a>
   </div>
 </section>
+</div><!-- /pricing panel -->
 
 <footer>
   <div class="wrap">
@@ -329,6 +351,47 @@
     <p class="fine">Built for the XPRIZE “Build with Gemini” challenge · Part of Project Anamnesia · © 2026 Yadira · <a href="/?terms">Terms &amp; Acknowledgements</a> · <a href="mailto:partnerships@yadira.app">partnerships@yadira.app</a></p>
   </div>
 </footer>
+
+<script>
+  // Section tabs — one panel visible at a time. Progressive enhancement: with
+  // JS off, all panels render (the anchors still work), just as a long scroll.
+  (function () {
+    var buttons = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('.tab-panel'));
+    var bar = document.querySelector('.tab-bar');
+    var names = panels.map(function (p) { return p.getAttribute('data-panel'); });
+
+    function show(name, scroll) {
+      if (names.indexOf(name) === -1) name = 'about';
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== name; });
+      document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.setAttribute('aria-selected', b.getAttribute('data-tab') === name ? 'true' : 'false');
+      });
+      try { history.replaceState(null, '', '#' + name); } catch (e) {}
+      if (scroll && bar) {
+        // Bring the sticky bar (and the chosen panel beneath it) to the top,
+        // so the section is immediately in view instead of below the hero.
+        window.scrollTo({ top: bar.offsetTop, behavior: 'smooth' });
+      }
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        show(btn.getAttribute('data-tab'), true);
+      });
+    });
+
+    var initial = (location.hash || '').replace('#', '');
+    show(names.indexOf(initial) !== -1 ? initial : 'about', false);
+
+    // Respond to hash navigation (back/forward, or a shared deep link opened
+    // while the page is already loaded).
+    window.addEventListener('hashchange', function () {
+      show((location.hash || '').replace('#', ''), false);
+    });
+  })();
+</script>
 
 </body>
 </html>
