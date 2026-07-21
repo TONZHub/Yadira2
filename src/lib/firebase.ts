@@ -1,22 +1,36 @@
 // Firebase initialization for Yadira
 // ------------------------------------------------------------------
-// Design principle: the app must work WITHOUT Firebase configured.
-// If env vars are missing, `db` is null and the data layer silently
-// falls back to localStorage. Paste real config in .env and the app
-// becomes cloud-synced with zero code changes.
+// Cloud sync is on by default: the production Firebase web config is
+// committed below (web config is public by design — security lives in
+// Firestore rules, see FIREBASE-SETUP.md). VITE_FIREBASE_* env vars
+// override it per-field, e.g. to point a dev build at another project.
+// If both the default and the env override were ever removed, `db`
+// stays null and the data layer falls back to localStorage.
 // ------------------------------------------------------------------
 
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
+const defaultConfig = {
+  apiKey: 'AIzaSyB0byXLSHRNOtGvYH6hxWhNmKZ7U4zkHA0',
+  authDomain: 'yadira-1c1dd.firebaseapp.com',
+  projectId: 'yadira-1c1dd',
+  storageBucket: 'yadira-1c1dd.firebasestorage.app',
+  messagingSenderId: '492873564306',
+  appId: '1:492873564306:web:18f194c4bba243ba2de64b',
+  measurementId: 'G-6MWZQPBKQE',
+};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || defaultConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || defaultConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || defaultConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || defaultConfig.storageBucket,
+  messagingSenderId:
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || defaultConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || defaultConfig.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || defaultConfig.measurementId,
 };
 
 // Firebase is "configured" only when the essentials exist

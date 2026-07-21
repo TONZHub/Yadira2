@@ -1,8 +1,10 @@
 # Render blueprint for Yadira (https://render.com/docs/blueprint-spec)
 # Deploy: Render dashboard → New → Blueprint → pick this repo.
 # All env vars are prompted in the dashboard on first deploy (sync: false);
-# copy the values from your local .env. The VITE_FIREBASE_* vars are needed
-# at BUILD time (Vite bakes them into the client bundle).
+# copy the values from your local .env. The VITE_FIREBASE_* vars are baked
+# in at BUILD time but OPTIONAL — the production Firebase config is
+# committed in src/lib/firebase.ts, so leave them blank unless you want to
+# point a deploy at a different Firebase project.
 services:
   - type: web
     name: yadira

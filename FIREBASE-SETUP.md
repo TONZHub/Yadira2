@@ -1,9 +1,15 @@
 # Yadira — Firebase Setup Guide
 
-The app now runs in **two modes automatically**:
+**Cloud sync is on by default.** The production Firebase web config
+(project `yadira-1c1dd`) is committed in `src/lib/firebase.ts`, so every
+build — local dev, Render, anywhere — syncs to Firestore in real time
+without any env vars. (Web config is safe to commit; security lives in
+the Firestore rules below.)
 
-- **No Firebase config** → localStorage mode (exactly like before, nothing breaks)
-- **Firebase config present** → real-time cloud sync across devices (caregiver phone + patient tablet)
+Setting `VITE_FIREBASE_*` env vars overrides the committed config, e.g.
+to point a dev build at a separate test project. Steps 1–4 below are the
+original guide for creating a project from scratch — you only need them
+for a new/override project.
 
 ## Step 0 — Protect your $300 credits FIRST
 
