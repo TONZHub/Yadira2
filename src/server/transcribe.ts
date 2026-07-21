@@ -32,6 +32,16 @@ type DecodedAudio = {
   mimeType: string;
 };
 
+type TranscriptionConfig = ReturnType<typeof transcriptionConfig>;
+
+let cachedClient:
+  | {
+      apiKey: string;
+      baseURL?: string;
+      client: OpenAI;
+    }
+  | null = null;
+
 function normalizeMimeType(value: unknown) {
   if (typeof value !== 'string') return null;
   const normalized = value.split(';', 1)[0]?.trim().toLowerCase();
@@ -50,9 +60,14 @@ function decodeBase64Audio(payload: string) {
   if (!BASE64_RE.test(cleaned)) {
     throw new AudioPayloadError(400, 'invalid_audio', 'Audio payload must be base64 encoded.');
   }
+  if (cleaned.length % 4 === 1) {
+    throw new AudioPayloadError(400, 'invalid_audio', 'Audio payload could not be decoded.');
+  }
 
+  const padding = cleaned.endsWith('==') ? 2 : cleaned.endsWith('=') ? 1 : 0;
+  const expectedByteLength = Math.floor((cleaned.length * 3) / 4) - padding;
   const buffer = Buffer.from(cleaned, 'base64');
-  if (!buffer.length || buffer.toString('base64').replace(/=+$/, '') !== cleaned.replace(/=+$/, '')) {
+  if (!buffer.length || buffer.length !== expectedByteLength) {
     throw new AudioPayloadError(400, 'invalid_audio', 'Audio payload could not be decoded.');
   }
   if (buffer.length > MAX_AUDIO_BYTES) {
@@ -100,7 +115,7 @@ function decodeIncomingAudio(audio: unknown, mimeType: unknown): DecodedAudio {
 
   return {
     buffer,
-    filename: `dictation.${extension}`,
+    filename: `voice-input.${extension}`,
     mimeType: resolvedMimeType,
   };
 }
@@ -132,6 +147,29 @@ const notConfigured = (res: express.Response) =>
       'Server transcription is unavailable. Set OPENROUTER_API_KEY, or set both OPENAI_API_KEY and OPENAI_BASE_URL for a compatible Whisper Turbo host.',
   });
 
+function getOpenAIClient(config: TranscriptionConfig) {
+  if (
+    cachedClient &&
+    cachedClient.apiKey === config.apiKey &&
+    cachedClient.baseURL === config.baseURL
+  ) {
+    return cachedClient.client;
+  }
+
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+  });
+
+  cachedClient = {
+    apiKey: config.apiKey,
+    baseURL: config.baseURL,
+    client,
+  };
+
+  return client;
+}
+
 export function registerTranscribeRoutes(app: express.Express) {
   app.post('/api/transcribe', async (req: express.Request, res: express.Response) => {
     const config = transcriptionConfig();
@@ -139,10 +177,7 @@ export function registerTranscribeRoutes(app: express.Express) {
 
     try {
       const audio = decodeIncomingAudio(req.body?.audio, req.body?.mimeType);
-      const client = new OpenAI({
-        apiKey: config.apiKey,
-        ...(config.baseURL ? { baseURL: config.baseURL } : {}),
-      });
+      const client = getOpenAIClient(config);
 
       const file = await toFile(audio.buffer, audio.filename, { type: audio.mimeType });
       const transcription = await client.audio.transcriptions.create({
