@@ -32,12 +32,14 @@ import {
   Lock,
   Unlock,
   Maximize,
-  Minimize
+  Minimize,
+  ALargeSmall
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
+import { useLargeFont } from './lib/fontScale';
 import { getCircleId, isFirebaseConfigured } from './lib/firebase';
 import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn, TermsModal, TERMS_VERSION, PhotoAlbum } from './components';
 import type { FamilyPackApply } from './components';
@@ -173,6 +175,9 @@ function AppContent() {
       throw err;
     }
   };
+
+  // Larger-text accessibility toggle — device-wide, persisted.
+  const [largeFont, toggleLargeFont] = useLargeFont();
 
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
@@ -2044,6 +2049,22 @@ function AppContent() {
               <Sparkles className="w-5 h-5" />
             </button>
           )}
+
+          {/* Larger text — device-wide, on every screen. Shown on both the
+              patient view and the Caregiver Hub. */}
+          <button
+            id="btn-font-scale"
+            onClick={() => { toggleLargeFont(); playSoundCue('pop'); }}
+            aria-pressed={largeFont}
+            className={`p-2 sm:p-2.5 rounded-xl border transition-all ${
+              largeFont
+                ? 'bg-[#E8F1EB] text-[#3A5D45] border-[#CEDFCF]'
+                : 'border-[#E3DFC2] bg-white text-[#A6A27B] hover:text-[#3A5D45] hover:border-[#CEDFCF]'
+            }`}
+            title={largeFont ? 'Normal text size' : 'Larger text'}
+          >
+            <ALargeSmall className="w-5 h-5" />
+          </button>
 
           {/* Full screen — hides the browser's address bar and tabs. Pairs
               with Care Lock for a clean, kiosk-like patient screen. */}
