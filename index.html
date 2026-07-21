@@ -10,6 +10,15 @@
     <meta name="description" content="Yadira — an empathetic AI companion for people living with dementia, paired with a caregiver dashboard and clinical insight tracker." />
     <title>Yadira — Dementia Companion</title>
     <script>
+      // Apply the large-font preference before first paint so the app never
+      // flashes small text then jumps larger. Mirrors src/lib/fontScale.ts.
+      try {
+        if (localStorage.getItem('yadira_large_font') === '1') {
+          document.documentElement.style.fontSize = '125%';
+        }
+      } catch (e) { /* storage blocked — default size */ }
+    </script>
+    <script>
       // First-ever visitors at the bare root see the landing page; any device
       // that has used Yadira before (a token exists) goes straight to the app,
       // so patients and caregivers never gain an extra step. Any query string

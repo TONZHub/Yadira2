@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/AuthContext';
-import { AlertTriangle, Loader, UserRound, Shield } from 'lucide-react';
+import { AlertTriangle, Loader, UserRound, Shield, ALargeSmall } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import TermsModal, { TERMS_VERSION } from './TermsModal';
+import { useLargeFont } from '../lib/fontScale';
 
 // The logo draw-in finishes around 2.5s and holds; the frame blanks near
 // 5.5s. Fade the intro out just before the blank so the wordmark never
@@ -12,6 +13,7 @@ const INTRO_SEEN_KEY = 'yadira_intro_seen';
 
 export const LoginScreen: React.FC = () => {
   const { login, signup, enterPatientMode, loading, error: authError } = useAuth();
+  const [largeFont, toggleLargeFont] = useLargeFont();
   // The brand moment: "Yadira!" … then "log in?". Plays once per browser
   // session — bouncing back to this screen doesn't replay the wait.
   const [showIntro, setShowIntro] = useState(() => {
@@ -89,6 +91,23 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#5C8D71] to-[#3A5D45] flex items-center justify-center p-4">
+      {/* Larger-text toggle — reachable before signing in, for caregivers who
+          need it from the very first screen. */}
+      <button
+        type="button"
+        onClick={toggleLargeFont}
+        aria-pressed={largeFont}
+        className={`fixed top-4 right-4 z-40 inline-flex items-center gap-1.5 px-3 py-2 rounded-full border font-semibold text-sm shadow-sm transition-all ${
+          largeFont
+            ? 'bg-white text-[#3A5D45] border-white'
+            : 'bg-white/15 text-white border-white/40 hover:bg-white/25'
+        }`}
+        title={largeFont ? 'Normal text size' : 'Larger text'}
+      >
+        <ALargeSmall className="w-4 h-4" />
+        {largeFont ? 'Normal text' : 'Larger text'}
+      </button>
+
       {/* Logo intro — the wordmark draws itself in on its own cream, then
           fades to reveal the login. Tap anywhere to skip. */}
       <AnimatePresence>
