@@ -33,13 +33,16 @@ import {
   Unlock,
   Maximize,
   Minimize,
-  ALargeSmall
+  ALargeSmall,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Message, Memory, CustomFAQ, DailyLog, RoutineItem, PersonaFile, SessionMoment, MoodCheckIn, GalleryPhoto } from './types';
 import { DEFAULT_PROFILE, DEFAULT_PERSONA_FILE } from './types';
 import { useStoreList, useStoreDoc } from './lib/useStore';
 import { useLargeFont } from './lib/fontScale';
+import { useTheme, THEMES } from './lib/theme';
 import { getCircleId, isFirebaseConfigured } from './lib/firebase';
 import { VoiceInput, MediaUpload, EmotionBadge, LoginScreen, AuroraScreen, DigestibleMessage, FamilySetup, SensoryRoomsMenu, RainyWindow, AutumnLeaves, ForestCanopy, CallScreen, CampCheckIn, TermsModal, TERMS_VERSION, PhotoAlbum } from './components';
 import type { FamilyPackApply } from './components';
@@ -178,6 +181,7 @@ function AppContent() {
 
   // Larger-text accessibility toggle — device-wide, persisted.
   const [largeFont, toggleLargeFont] = useLargeFont();
+  const { theme: dashTheme, dark: darkMode, setTheme: setDashTheme, setDark: setDarkMode } = useTheme();
 
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
@@ -1954,7 +1958,7 @@ function AppContent() {
       <div className="pointer-events-none absolute inset-0">
         <motion.div
           className="absolute -top-20 -left-24 w-[32rem] h-[32rem] rounded-full blur-3xl opacity-30"
-          style={{ background: 'radial-gradient(circle, #b7e4c7 0%, #74c69d 45%, transparent 72%)' }}
+          style={{ background: 'radial-gradient(circle, var(--c-blob-a) 0%, var(--c-blob-b) 45%, transparent 72%)' }}
           animate={{ x: [0, 28, -16, 0], y: [0, 18, -10, 0], scale: [1, 1.08, 0.96, 1] }}
           transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -3004,6 +3008,63 @@ function AppContent() {
               {/* ── SETTINGS TAB ─────────────────────────────────────────── */}
               {caregiverTab === 'settings' && (
               <div className="space-y-6">
+
+              {/* Appearance — color-therapy themes + dark mode. Persisted per
+                  device; recolors the whole dashboard, never the clinical
+                  vivid-mode cues. */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm">
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-3">
+                  <h3 className="text-lg font-bold text-[#2C2C2A] flex items-center">
+                    <Sparkles className="w-5 h-5 text-[#3A5D45] mr-2" />
+                    Appearance
+                  </h3>
+                  <button
+                    type="button"
+                    id="btn-dark-mode"
+                    onClick={() => setDarkMode(!darkMode)}
+                    aria-pressed={darkMode}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-bold transition-all active:scale-95 ${
+                      darkMode
+                        ? 'bg-[#3A5D45] text-white border-[#3A5D45]'
+                        : 'bg-[#FCFAF5] text-[#5E5D57] border-[#E3DFC2] hover:border-[#CEDFCF]'
+                    }`}
+                  >
+                    {darkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                    {darkMode ? 'Dark mode on' : 'Dark mode'}
+                  </button>
+                </div>
+                <p className="text-xs text-[#7E7D76] mb-4 leading-relaxed">
+                  Choose a color that feels right for your family. Some people find green isn't for them —
+                  these palettes follow color therapy for calm, joy, or warmth. It changes the dashboard only.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {THEMES.map((t) => {
+                    const active = dashTheme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        id={`btn-theme-${t.id}`}
+                        onClick={() => { setDashTheme(t.id); playSoundCue('pop'); }}
+                        aria-pressed={active}
+                        className={`p-3 rounded-2xl border text-left transition-all duration-200 ${
+                          active
+                            ? 'border-[#3A5D45] ring-2 ring-[#3A5D45]/15 bg-[#F2FAF4] scale-[1.02]'
+                            : 'border-[#E3DFC2] bg-[#FCFAF5] hover:bg-[#EAE8DD]'
+                        }`}
+                      >
+                        <span
+                          className="block w-full h-8 rounded-lg mb-2 border border-black/5"
+                          style={{ background: t.swatch }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-xs font-bold text-[#2C2C2A] block leading-tight">{t.label}</span>
+                        <span className="text-[10px] text-[#7E7D76] block mt-0.5 leading-tight">{t.blurb}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Clinical Session Control & Mode Settings */}
               <div className="bg-white p-6 rounded-3xl border border-[#E3DFC2] shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-6">

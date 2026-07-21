@@ -17,6 +17,14 @@
           document.documentElement.style.fontSize = '125%';
         }
       } catch (e) { /* storage blocked — default size */ }
+      // Apply the color theme + dark mode before paint (mirrors src/lib/theme.ts).
+      try {
+        var th = localStorage.getItem('yadira_theme');
+        if (th && th !== 'green') document.documentElement.setAttribute('data-theme', th);
+        if (localStorage.getItem('yadira_theme_mode') === 'dark') {
+          document.documentElement.setAttribute('data-mode', 'dark');
+        }
+      } catch (e) { /* storage blocked — default theme */ }
     </script>
     <script>
       // First-ever visitors at the bare root see the landing page; any device

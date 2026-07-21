@@ -33,3 +33,109 @@ svg {
     padding: 0.5rem 0.625rem;
   }
 }
+
+
+/* ============================================================= */
+/*  Dashboard color themes (color-therapy palettes) + dark mode  */
+/* ------------------------------------------------------------- */
+/*  The brand-green family is remapped to CSS variables so a      */
+/*  theme swap recolors every green surface without touching the  */
+/*  500+ call sites. Selectors match the EXACT (uppercase) hex as */
+/*  authored in JSX — CSS class selectors are case-sensitive.     */
+/*  Rules are UNLAYERED so they beat Tailwind v4 layered utils.   */
+/* ============================================================= */
+
+:root{
+  --c-accent:#3a5d45; --c-accent-strong:#2b4633; --c-accent-mid:#5c8d71;
+  --c-accent-light:#92b4a1; --c-accent-hover-mid:#4a7259;
+  --c-accent-tint:#e8f1eb; --c-accent-tint2:#d6ebd9; --c-accent-tint-hover:#e4f0e7;
+  --c-accent-faint:#f2faf4; --c-accent-faint2:#f0f7f2; --c-accent-border:#cedfcf;
+  --c-app-bg:#f4f1ea; --c-blob-a:#b7e4c7; --c-blob-b:#74c69d;
+  --c-surface:#ffffff; --c-surface-2:#fcfaf5;
+}
+[data-theme="soothing"]{
+  --c-accent:#2f5f80; --c-accent-strong:#244a63; --c-accent-mid:#5b8cab;
+  --c-accent-light:#9cc0d6; --c-accent-hover-mid:#285571;
+  --c-accent-tint:#e6eff5; --c-accent-tint2:#d4e6f0; --c-accent-tint-hover:#dcecf5;
+  --c-accent-faint:#f1f7fb; --c-accent-faint2:#eaf3f9; --c-accent-border:#c6dcea;
+  --c-blob-a:#cfe8f6; --c-blob-b:#86c5e6;
+}
+[data-theme="happiness"]{
+  --c-accent:#9a6614; --c-accent-strong:#77500f; --c-accent-mid:#c89434;
+  --c-accent-light:#e0b968; --c-accent-hover-mid:#855911;
+  --c-accent-tint:#fbf0d5; --c-accent-tint2:#f6e6bb; --c-accent-tint-hover:#f7ecc9;
+  --c-accent-faint:#fdf8ec; --c-accent-faint2:#faf3df; --c-accent-border:#ecd9a6;
+  --c-blob-a:#ffe7ad; --c-blob-b:#f7c65c;
+}
+[data-theme="love"]{
+  --c-accent:#a63a60; --c-accent-strong:#83294a; --c-accent-mid:#cf7898;
+  --c-accent-light:#e0a6bd; --c-accent-hover-mid:#922f52;
+  --c-accent-tint:#fbe7ef; --c-accent-tint2:#f6d3e0; --c-accent-tint-hover:#f7dbe8;
+  --c-accent-faint:#fdf3f7; --c-accent-faint2:#fbeaf1; --c-accent-border:#efc9d8;
+  --c-blob-a:#ffd5e4; --c-blob-b:#ff9ec0;
+}
+
+/* brand-green family -> accent variables (uppercase hex, as authored) */
+.bg-\[\#3A5D45\]{background-color:var(--c-accent)}
+.bg-\[\#2B4633\]{background-color:var(--c-accent-strong)}
+.bg-\[\#5C8D71\]{background-color:var(--c-accent-mid)}
+.bg-\[\#E8F1EB\],.bg-\[\#EAF3EC\]{background-color:var(--c-accent-tint)}
+.bg-\[\#D6EBD9\]{background-color:var(--c-accent-tint2)}
+.bg-\[\#E4F0E7\]{background-color:var(--c-accent-tint-hover)}
+.bg-\[\#F2FAF4\]{background-color:var(--c-accent-faint)}
+.bg-\[\#F0F7F2\]{background-color:var(--c-accent-faint2)}
+.text-\[\#3A5D45\]{color:var(--c-accent)}
+.text-\[\#5C8D71\]{color:var(--c-accent-mid)}
+.border-\[\#3A5D45\]{border-color:var(--c-accent)}
+.border-\[\#5C8D71\]{border-color:var(--c-accent-mid)}
+.border-\[\#CEDFCF\]{border-color:var(--c-accent-border)}
+.ring-\[\#3A5D45\]{--tw-ring-color:var(--c-accent)}
+.ring-\[\#5C8D71\]{--tw-ring-color:var(--c-accent-mid)}
+.to-\[\#3A5D45\]{--tw-gradient-to:var(--c-accent)}
+.to-\[\#92B4A1\]{--tw-gradient-to:var(--c-accent-light)}
+.from-\[\#5C8D71\]{--tw-gradient-from:var(--c-accent-mid)}
+.hover\:bg-\[\#2B4633\]:hover{background-color:var(--c-accent-strong)}
+.hover\:bg-\[\#4A7259\]:hover{background-color:var(--c-accent-hover-mid)}
+.hover\:bg-\[\#E4F0E7\]:hover{background-color:var(--c-accent-tint-hover)}
+.hover\:bg-\[\#F0F7F2\]:hover{background-color:var(--c-accent-faint2)}
+.hover\:bg-\[\#F2FAF4\]:hover{background-color:var(--c-accent-faint)}
+.hover\:text-\[\#3A5D45\]:hover{color:var(--c-accent)}
+.hover\:border-\[\#3A5D45\]:hover{border-color:var(--c-accent)}
+.hover\:border-\[\#5C8D71\]:hover{border-color:var(--c-accent-mid)}
+.hover\:border-\[\#CEDFCF\]:hover{border-color:var(--c-accent-border)}
+
+/* app shell background follows the theme's app-bg token */
+.bg-\[\#F4F1EA\]{background-color:var(--c-app-bg)}
+
+/* ============================ DARK MODE ============================ */
+[data-mode="dark"]{
+  --c-app-bg:#14171a; --c-surface:#20252a; --c-surface-2:#282e33;
+  --c-text:#e9e7e0; --c-text-2:#bdbcb4; --c-text-3:#93958d; --c-border:#353b41;
+  --c-accent-tint:#1e2f2a; --c-accent-tint2:#243a30; --c-accent-tint-hover:#294036;
+  --c-accent-faint:#1a2622; --c-accent-faint2:#20302a; --c-accent-border:#33463d;
+}
+[data-mode="dark"][data-theme="soothing"]{ --c-accent-tint:#182632; --c-accent-tint2:#1d3140; --c-accent-faint:#151f28; --c-accent-faint2:#1a2833; --c-accent-tint-hover:#203848; --c-accent-border:#2b4055; }
+[data-mode="dark"][data-theme="happiness"]{ --c-accent-tint:#2e2413; --c-accent-tint2:#3a2e18; --c-accent-faint:#241d10; --c-accent-faint2:#2e2615; --c-accent-tint-hover:#3d3119; --c-accent-border:#4a3c20; }
+[data-mode="dark"][data-theme="love"]{ --c-accent-tint:#301823; --c-accent-tint2:#3d1f2d; --c-accent-faint:#25131b; --c-accent-faint2:#2f1a24; --c-accent-tint-hover:#40202e; --c-accent-border:#4d2938; }
+
+[data-mode="dark"] .bg-white{background-color:var(--c-surface)}
+[data-mode="dark"] .bg-white\/90{background-color:color-mix(in srgb, var(--c-surface) 92%, transparent)}
+[data-mode="dark"] .bg-white\/80{background-color:color-mix(in srgb, var(--c-surface) 88%, transparent)}
+[data-mode="dark"] .bg-white\/70{background-color:color-mix(in srgb, var(--c-surface) 82%, transparent)}
+[data-mode="dark"] .bg-\[\#FCFAF5\],[data-mode="dark"] .bg-\[\#FAF9F5\],[data-mode="dark"] .bg-\[\#EAE8DD\]{background-color:var(--c-surface-2)}
+/* NB: .bg-[#F4F1EA] (the app shell) intentionally keeps its --c-app-bg
+   mapping so the page stays the darkest layer, beneath the cards. */
+[data-mode="dark"] .text-\[\#2C2C2A\]{color:var(--c-text)}
+[data-mode="dark"] .text-\[\#5E5D57\]{color:var(--c-text-2)}
+[data-mode="dark"] .text-\[\#7E7D76\],[data-mode="dark"] .text-\[\#8A8981\],[data-mode="dark"] .text-\[\#A6A27B\]{color:var(--c-text-3)}
+[data-mode="dark"] .border-\[\#E3DFC2\],[data-mode="dark"] .border-\[\#C4C09E\],[data-mode="dark"] .border-\[\#D8D5C4\],[data-mode="dark"] .border-\[\#E4E0C4\],[data-mode="dark"] .border-\[\#EFECDD\],[data-mode="dark"] .border-\[\#D5D2B3\]{border-color:var(--c-border)}
+[data-mode="dark"] .border-white{border-color:var(--c-border)}
+/* Named-palette callouts that would otherwise glow bright in dark mode.
+   Kept surgical: the Aurora (indigo) card gets a dark indigo treatment;
+   semantic alert colors (red help button, violet lucidity, amber status)
+   are deliberately left bright — their vividness is the signal. */
+[data-mode="dark"] .bg-indigo-50{background-color:#1e2340}
+[data-mode="dark"] .border-indigo-200,[data-mode="dark"] .border-indigo-100{border-color:#2e3566}
+[data-mode="dark"] .text-indigo-700{color:#aab2ee}
+[data-mode="dark"] .text-indigo-500{color:#8b93d8}
+[data-mode="dark"] .hover\:bg-indigo-100:hover{background-color:#272d52}
