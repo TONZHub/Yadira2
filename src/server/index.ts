@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { authMiddleware } from './auth';
 import { registerStripeRoutes } from './stripe';
+import { registerEmailRoutes } from './email';
 
 dotenv.config();
 
@@ -19,6 +20,9 @@ app.use('/api/', authMiddleware);
 
 // Stripe billing — Yadira Premium checkout, verification, and billing portal.
 registerStripeRoutes(app);
+
+// Transactional email — the post-signup welcome message (Resend).
+registerEmailRoutes(app);
 
 // API Keys
 const openRouterApiKey = process.env.OPENROUTER_API_KEY;

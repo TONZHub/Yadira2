@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, Auth } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, getAdditionalUserInfo, Auth } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './firebase';
 
 interface AuthContextType {
@@ -61,6 +61,15 @@ function startLocalSession(
   localStorage.setItem('yadira_token', localToken);
   localStorage.setItem('yadira_user_id', uid);
   setError(null);
+}
+
+// Fire-and-forget: a failed (or unconfigured) welcome email must never
+// surface as a signup error.
+function sendWelcomeEmail(token: string) {
+  fetch('/api/email/welcome', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => {});
 }
 
 function isFirebaseAuthConfigError(err: any): boolean {
@@ -208,6 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('yadira_user_id', result.user.uid);
       sessionStorage.setItem('yadira_session_role', 'caregiver');
       setSessionRole('caregiver');
+      sendWelcomeEmail(newToken);
     } catch (err: any) {
       if (isFirebaseAuthConfigError(err)) {
         console.warn('[Yadira Auth] Firebase Auth not fully configured, using local demo auth mode.');
@@ -240,6 +250,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem('yadira_user_id', result.user.uid);
       sessionStorage.setItem('yadira_session_role', 'caregiver');
       setSessionRole('caregiver');
+      // Google sign-in doubles as signup — welcome only first-time accounts.
+      if (getAdditionalUserInfo(result)?.isNewUser) sendWelcomeEmail(newToken);
     } catch (err: any) {
       const code = String(err?.code || '');
       // Dismissing the Google popup is a normal action, not a failure.

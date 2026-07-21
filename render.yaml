@@ -24,6 +24,9 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      # Post-signup welcome email via Resend (optional). See EMAIL-SETUP.md.
+      - key: RESEND_API_KEY
+        sync: false
       - key: VITE_FIREBASE_API_KEY
         sync: false
       - key: VITE_FIREBASE_AUTH_DOMAIN
