@@ -103,30 +103,42 @@ export function registerStripeRoutes(app: express.Express) {
     const circle = String(req.body?.circle || 'default-circle').slice(0, 128);
     const base = baseUrl(req);
 
+    // Pinned rather than left to the dashboard's dynamic payment-method
+    // config: an account whose dashboard methods are unset/misconfigured
+    // otherwise gets "No valid payment method types for this Checkout
+    // Session". Every pinned type must be activated in the dashboard's
+    // payment methods for the CURRENT mode (test and live are configured
+    // separately) — if Stripe rejects 'link' as not activated, retry
+    // card-only so checkout never breaks on dashboard state.
+    const sessionParams: Record<string, string> = {
+      mode: 'subscription',
+      'payment_method_types[0]': 'card',
+      'payment_method_types[1]': 'link',
+      'line_items[0][quantity]': '1',
+      'line_items[0][price_data][currency]': 'usd',
+      'line_items[0][price_data][unit_amount]': '500',
+      'line_items[0][price_data][recurring][interval]': 'week',
+      'line_items[0][price_data][product_data][name]': 'Yadira Caregiver Pro',
+      'line_items[0][price_data][product_data][description]':
+        'Unlimited AI care reports — personalized routines and clinical insights. The companion itself stays free for your family; this sustains the professional caregiver tooling.',
+      success_url: `${base}/?premium_session={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/?premium_canceled=1`,
+      'metadata[circleId]': circle,
+      'subscription_data[metadata][circleId]': circle,
+      allow_promotion_codes: 'true',
+    };
+
     try {
-      const session = await stripeRequest('POST', '/checkout/sessions', {
-        mode: 'subscription',
-        // Pinned rather than left to the dashboard's dynamic payment-method
-        // config: an account whose dashboard methods are unset/misconfigured
-        // otherwise gets "No valid payment method types for this Checkout
-        // Session". Every pinned type must be activated in the dashboard's
-        // payment methods (Stripe rejects the session otherwise) — card and
-        // link are; remember that test and live mode are configured separately.
-        'payment_method_types[0]': 'card',
-        'payment_method_types[1]': 'link',
-        'line_items[0][quantity]': '1',
-        'line_items[0][price_data][currency]': 'usd',
-        'line_items[0][price_data][unit_amount]': '500',
-        'line_items[0][price_data][recurring][interval]': 'week',
-        'line_items[0][price_data][product_data][name]': 'Yadira Caregiver Pro',
-        'line_items[0][price_data][product_data][description]':
-          'Unlimited AI care reports — personalized routines and clinical insights. The companion itself stays free for your family; this sustains the professional caregiver tooling.',
-        success_url: `${base}/?premium_session={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${base}/?premium_canceled=1`,
-        'metadata[circleId]': circle,
-        'subscription_data[metadata][circleId]': circle,
-        allow_promotion_codes: 'true',
-      });
+      let session;
+      try {
+        session = await stripeRequest('POST', '/checkout/sessions', sessionParams);
+      } catch (err: any) {
+        if (!/type provided: link is invalid/i.test(String(err?.message || ''))) throw err;
+        console.warn('[Stripe] Link not activated for this mode — falling back to card-only checkout.');
+        const cardOnly = { ...sessionParams };
+        delete cardOnly['payment_method_types[1]'];
+        session = await stripeRequest('POST', '/checkout/sessions', cardOnly);
+      }
       res.json({ url: session.url, sessionId: session.id });
     } catch (err: any) {
       console.error('[Stripe] create-checkout-session failed:', err.message || err);
