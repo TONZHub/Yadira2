@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, Auth } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, Auth } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './firebase';
 
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   enterPatientMode: () => void;
   logout: () => Promise<void>;
 }
@@ -220,6 +221,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithGoogle = async () => {
+    if (!isFirebaseConfigured || !auth) {
+      console.warn('[Yadira Auth] Firebase not configured, using local demo auth mode.');
+      startLocalSession('google@yadira.local', setUser, setToken, setError);
+      sessionStorage.setItem('yadira_session_role', 'caregiver');
+      setSessionRole('caregiver');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await signInWithPopup(auth as Auth, new GoogleAuthProvider());
+      const newToken = await result.user.getIdToken();
+      setUser({ uid: result.user.uid, email: result.user.email });
+      setToken(newToken);
+      localStorage.setItem('yadira_token', newToken);
+      localStorage.setItem('yadira_user_id', result.user.uid);
+      sessionStorage.setItem('yadira_session_role', 'caregiver');
+      setSessionRole('caregiver');
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      // Dismissing the Google popup is a normal action, not a failure.
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      if (isFirebaseAuthConfigError(err)) {
+        console.warn('[Yadira Auth] Firebase Auth not fully configured, using local demo auth mode.');
+        startLocalSession('google@yadira.local', setUser, setToken, setError);
+        sessionStorage.setItem('yadira_session_role', 'caregiver');
+        setSessionRole('caregiver');
+        return;
+      }
+      setError(err.message || 'Google sign-in failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const enterPatientMode = () => {
     // Always hydrate the user state, not just when no token exists. Since
     // sessions stopped auto-restoring on fresh visits, `user` is null on the
@@ -260,7 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, sessionRole, loading, error, login, signup, enterPatientMode, logout }}>
+    <AuthContext.Provider value={{ user, token, sessionRole, loading, error, login, signup, loginWithGoogle, enterPatientMode, logout }}>
       {children}
     </AuthContext.Provider>
   );
