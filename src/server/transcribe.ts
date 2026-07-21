@@ -75,7 +75,8 @@ function decodeIncomingAudio(audio: unknown, mimeType: unknown): DecodedAudio {
   if (!resolvedMimeType) {
     throw new AudioPayloadError(400, 'missing_mime_type', 'A supported audio mimeType is required.');
   }
-  if (!extensionForMimeType(resolvedMimeType)) {
+  const extension = extensionForMimeType(resolvedMimeType);
+  if (!extension) {
     throw new AudioPayloadError(
       415,
       'unsupported_mime_type',
@@ -95,7 +96,6 @@ function decodeIncomingAudio(audio: unknown, mimeType: unknown): DecodedAudio {
     throw new AudioPayloadError(400, 'invalid_audio', 'Audio data URL must use base64 encoding.');
   }
 
-  const extension = extensionForMimeType(resolvedMimeType);
   const buffer = decodeBase64Audio(base64Payload);
 
   return {
@@ -108,13 +108,18 @@ function decodeIncomingAudio(audio: unknown, mimeType: unknown): DecodedAudio {
 function transcriptionConfig() {
   const openAIKey = process.env.OPENAI_API_KEY?.trim();
   const openRouterKey = process.env.OPENROUTER_API_KEY?.trim();
+  const openAIBaseURL = process.env.OPENAI_BASE_URL?.trim();
+  const usingOpenRouter = !openAIKey && !!openRouterKey;
   const apiKey = openAIKey || openRouterKey || '';
-  const baseURL = process.env.OPENAI_BASE_URL?.trim() || (!openAIKey && openRouterKey ? OPENROUTER_BASE_URL : undefined);
+  const baseURL = openAIBaseURL || (usingOpenRouter ? OPENROUTER_BASE_URL : undefined);
 
   return {
     apiKey,
     baseURL,
-    configured: !!apiKey && apiKey !== 'MY_OPENAI_API_KEY' && apiKey !== 'MY_OPENROUTER_API_KEY',
+    configured:
+      ((!!openRouterKey && openRouterKey !== 'MY_OPENROUTER_API_KEY') ||
+        (!!openAIKey && openAIKey !== 'MY_OPENAI_API_KEY' && !!openAIBaseURL)) &&
+      !!baseURL,
   };
 }
 
@@ -122,7 +127,7 @@ const notConfigured = (res: express.Response) =>
   res.status(501).json({
     error: 'transcription_not_configured',
     message:
-      'Server transcription is unavailable. Set OPENAI_API_KEY (or OPENROUTER_API_KEY) and optionally OPENAI_BASE_URL to enable Whisper Turbo.',
+      'Server transcription is unavailable. Set OPENROUTER_API_KEY, or set both OPENAI_API_KEY and OPENAI_BASE_URL for a compatible Whisper Turbo host.',
   });
 
 export function registerTranscribeRoutes(app: express.Express) {

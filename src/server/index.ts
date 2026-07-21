@@ -4,6 +4,8 @@ import { registerTranscribeRoutes } from './transcribe';
 
 const app = express();
 
+// Base64 JSON adds roughly 33% overhead, so leave headroom above the route's
+// 10 MB decoded-audio limit without opening the door to unbounded uploads.
 app.use(express.json({ limit: '15mb' }));
 
 app.get('/health', (_req, res) => {
