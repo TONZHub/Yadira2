@@ -106,6 +106,12 @@ export function registerStripeRoutes(app: express.Express) {
     try {
       const session = await stripeRequest('POST', '/checkout/sessions', {
         mode: 'subscription',
+        // Pinned rather than left to the dashboard's dynamic payment-method
+        // config: an account whose dashboard methods are unset/misconfigured
+        // otherwise gets "No valid payment method types for this Checkout
+        // Session". Card + Link (one-click saved details) covers this product.
+        'payment_method_types[0]': 'card',
+        'payment_method_types[1]': 'link',
         'line_items[0][quantity]': '1',
         'line_items[0][price_data][currency]': 'usd',
         'line_items[0][price_data][unit_amount]': '500',
