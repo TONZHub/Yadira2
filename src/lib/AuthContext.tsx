@@ -189,6 +189,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isFirebaseAuthConfigError(err)) {
         console.warn('[Yadira Auth] Firebase Auth not fully configured, using local demo auth mode.');
         startLocalSession(email, setUser, setToken, setError);
+        // Without the session-role marker the auth listener treats this as a
+        // fresh visit and immediately signs the demo session back out.
+        sessionStorage.setItem('yadira_session_role', 'caregiver');
+        setSessionRole('caregiver');
         return;
       }
       setError(err.message || 'Login failed');
@@ -222,6 +226,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isFirebaseAuthConfigError(err)) {
         console.warn('[Yadira Auth] Firebase Auth not fully configured, using local demo auth mode.');
         startLocalSession(email, setUser, setToken, setError);
+        sessionStorage.setItem('yadira_session_role', 'caregiver');
+        setSessionRole('caregiver');
         return;
       }
       setError(err.message || 'Signup failed');

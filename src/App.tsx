@@ -52,6 +52,7 @@ import { ToastProvider, useToast } from './lib/ToastContext';
 import { DEMO_MEMORIES, DEMO_FAQS, DEMO_LOGS, DEMO_ROUTINE } from './lib/demoData';
 import { playMemorySoundscape } from './lib/soundscapes';
 import { ChatMessageSkeleton, MemorySkeleton, RoutineSkeleton, LogSkeleton } from './components/LoadingSkeletons';
+import LodgeScreen from './lodge/LodgeScreen';
 
 // Realistic pre-populated clinical logs for a high-fidelity starting state (caregiver charts look populated immediately)
 const INITIAL_LOGS: DailyLog[] = [
@@ -191,7 +192,7 @@ function AppContent() {
   // Navigation: 'patient' or 'caregiver'
   const [activeTab, setActiveTab] = useState<'patient' | 'caregiver'>(isPatientSession ? 'patient' : 'caregiver');
   // Secondary caregiver hub navigation
-  type CaregiverTab = 'today' | 'talk' | 'memories' | 'settings';
+  type CaregiverTab = 'today' | 'talk' | 'lodge' | 'memories' | 'settings';
   const [caregiverTab, setCaregiverTab] = useState<CaregiverTab>('talk');
   const isCaregiverPreview = !isPatientSession && activeTab === 'patient';
   useEffect(() => {
@@ -2893,6 +2894,7 @@ function AppContent() {
               <div className="flex gap-1 p-1 bg-[#F4F1EA] rounded-2xl border border-[#E3DFC2] w-full">
                 {([
                   { id: 'talk',     label: 'Talk to Yadira', icon: '💬' },
+                  { id: 'lodge',    label: "Hattie's Lodge", icon: '🛖' },
                   { id: 'today',    label: 'Today',          icon: '📋' },
                   { id: 'memories', label: 'Memories',       icon: '📷' },
                   { id: 'settings', label: 'Settings',       icon: '⚙️' },
@@ -2913,6 +2915,19 @@ function AppContent() {
                   </button>
                 ))}
               </div>
+
+              {/* Hattie's Lodge — the caregiver's own place (Caregiver Pro) */}
+              {caregiverTab === 'lodge' && (
+                <LodgeScreen
+                  isPremium={isPremium}
+                  premiumBusy={premiumBusy}
+                  onUnlock={startPremiumCheckout}
+                  caregiverName={caregiverName}
+                  caregiverRelationship={profile.caregiverRelationship}
+                  patientName={patientName}
+                  soundEnabled={soundFeedback}
+                />
+              )}
 
               {/* Ask Yadira — the caregiver's co-pilot */}
               {caregiverTab === 'talk' && (

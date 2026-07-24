@@ -103,6 +103,22 @@ export const DEFAULT_PERSONA_FILE: PersonaFile = {
 // companion's whole character IS the represented loved one.
 export type CompanionPersonality = 'gentle' | 'sunny' | 'playful' | 'practical' | 'storyteller';
 
+// ---------- Hattie's Lodge (the caregiver's own space, Caregiver Pro) ----------
+
+/** The caregiver's daily "how heavy was today?" check-in at the lodge. */
+export interface CaregiverCheckIn {
+  /** ISO date (yyyy-mm-dd) — one check-in per day, id field for the store. */
+  date: string;
+  load: 'steady' | 'stretched' | 'heavy' | 'empty';
+}
+
+export interface HattieMessage {
+  id: string;
+  role: 'caregiver' | 'hattie';
+  text: string;
+  timestamp: number;
+}
+
 export interface CaregiverProfile {
   patientName: string;
   patientStage: string;

@@ -22,6 +22,13 @@ const defaultConfig = {
   measurementId: 'G-6MWZQPBKQE',
 };
 
+// Escape hatch: VITE_FIREBASE_API_KEY="off" disables Firebase entirely and
+// runs the app in pure localStorage mode (local demo auth, no network).
+// Used for offline dev, driving the app in tests, and camera-ready demo
+// seeding — the committed default config makes cloud mode the default
+// everywhere else, so this is the only way back to the old local mode.
+const firebaseDisabled = import.meta.env.VITE_FIREBASE_API_KEY === 'off';
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || defaultConfig.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || defaultConfig.authDomain,
@@ -35,7 +42,7 @@ const firebaseConfig = {
 
 // Firebase is "configured" only when the essentials exist
 export const isFirebaseConfigured: boolean = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.projectId
+  !firebaseDisabled && firebaseConfig.apiKey && firebaseConfig.projectId
 );
 
 let app: FirebaseApp | null = null;

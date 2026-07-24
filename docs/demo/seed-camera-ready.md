@@ -1,5 +1,12 @@
 # Camera-ready seeding paste
 
+> **Cloud-sync era note:** Firebase is now on by default, and Firestore will
+> overwrite localStorage-seeded data on load. For filming, either seed a
+> fresh signed-in account's cloud circle by clicking through the app, or run
+> a local dev build with `VITE_FIREBASE_API_KEY="off"` in `.env` — that
+> disables Firebase entirely and restores the pure-localStorage mode this
+> paste was written for (local demo login, no cloud).
+
 Open the deployed app **signed in as the caregiver you'll film with**, press
 F12 → Console, paste the whole block, hit Enter, then **reload the page**.
 
