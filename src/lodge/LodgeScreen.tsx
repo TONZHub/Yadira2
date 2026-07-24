@@ -14,12 +14,18 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Loader, Sparkles } from 'lucide-react';
+import { Send, Loader, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import type { CaregiverCheckIn, HattieMessage } from '../types';
 import { Hattie } from '../components/Hattie';
 import Hearth from './Hearth';
 import { useStoreList, useStoreDoc } from '../lib/useStore';
 import { startCampfireAmbience, type CampfireHandle } from '../lib/campSounds';
+import { getCircleId } from '../lib/firebase';
+
+// Hattie's own Inworld designed voice — hers alone, distinct from Yadira's
+// voices and any Vivid persona voice.
+const HATTIE_VOICE_ID = 'zippy-pecan-9151__design-voice-29a734a1';
+const LODGE_VOICE_PREF = 'yadira_lodge_voice';
 
 type Load = CaregiverCheckIn['load'];
 
@@ -73,6 +79,56 @@ export const LodgeScreen: React.FC<LodgeScreenProps> = ({
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [voiceOn, setVoiceOn] = useState(() => localStorage.getItem(LODGE_VOICE_PREF) !== 'off');
+  const hattieAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const toggleVoice = () => {
+    setVoiceOn((v) => {
+      const next = !v;
+      localStorage.setItem(LODGE_VOICE_PREF, next ? 'on' : 'off');
+      if (!next) {
+        hattieAudioRef.current?.pause();
+        hattieAudioRef.current = null;
+      }
+      return next;
+    });
+  };
+
+  // Hattie speaks her replies in her own voice. Deliberately NO device-voice
+  // fallback (unlike the patient companion): a stranger's voice would break
+  // her more than silence does — the words are on screen either way.
+  const speakAsHattie = async (text: string) => {
+    if (!voiceOn) return;
+    try {
+      hattieAudioRef.current?.pause();
+      const token = localStorage.getItem('yadira_token');
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text: text.replace(/\*+/g, '').slice(0, 1200),
+          voiceId: HATTIE_VOICE_ID,
+          circle: getCircleId(),
+        }),
+      });
+      if (!res.ok) return;
+      const objectUrl = URL.createObjectURL(await res.blob());
+      const audio = new Audio(objectUrl);
+      hattieAudioRef.current = audio;
+      audio.addEventListener('ended', () => URL.revokeObjectURL(objectUrl));
+      audio.addEventListener('error', () => URL.revokeObjectURL(objectUrl));
+      await audio.play();
+    } catch {
+      /* silent — the text already landed */
+    }
+  };
+
+  // Leaving the lodge stops her mid-sentence rather than letting the voice
+  // follow the caregiver into another tab.
+  useEffect(() => () => hattieAudioRef.current?.pause(), []);
 
   const todays = checkIns.find((c) => c.date === todayISO()) ?? null;
   const streak = useMemo(() => lodgeStreak(checkIns), [checkIns]);
@@ -138,6 +194,7 @@ export const LodgeScreen: React.FC<LodgeScreenProps> = ({
         timestamp: Date.now(),
       };
       setThread({ messages: [...withMine, reply].slice(-40) });
+      void speakAsHattie(reply.text);
     } catch {
       const offline: HattieMessage = {
         id: `${Date.now()}-h`,
@@ -291,6 +348,20 @@ export const LodgeScreen: React.FC<LodgeScreenProps> = ({
             )}
           </div>
           <div className="border-t border-[#5C5148] p-3 flex items-end gap-2 bg-[#2E2620]/60">
+            <button
+              type="button"
+              onClick={toggleVoice}
+              aria-pressed={voiceOn}
+              aria-label={voiceOn ? "Mute Hattie's voice" : "Unmute Hattie's voice"}
+              title={voiceOn ? "Hattie speaks her replies — tap to mute" : "Hattie is muted — tap to hear her"}
+              className={`rounded-xl p-2.5 border transition-all active:scale-95 ${
+                voiceOn
+                  ? 'border-[#C8A96A] bg-[#C8A96A]/15 text-[#C8A96A]'
+                  : 'border-[#5C5148] bg-[#241E18] text-[#8A7D68]'
+              }`}
+            >
+              {voiceOn ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+            </button>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
